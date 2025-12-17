@@ -27,9 +27,9 @@ assignees: ''
 
 ## Environment
 - **App Version**: [e.g., 1.0.0]
-- **Platform**: [Android/iOS/Windows/Linux/macOS/Web]
-- **OS Version**: [e.g., Android 13, iOS 16.4, Windows 11]
-- **Device**: [e.g., Pixel 7, iPhone 14, Desktop]
+- **Platform**: [Android/iOS]
+- **OS Version**: [e.g., Android 13, iOS 16.4]
+- **Device**: [e.g., Pixel 7, iPhone 14]
 - **Sonarr Version**: [e.g., 4.0.0]
 - **Radarr Version**: [e.g., 5.0.0]
 

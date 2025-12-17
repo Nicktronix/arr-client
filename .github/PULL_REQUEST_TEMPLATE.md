@@ -27,8 +27,6 @@ Fixes #
 <!-- Describe the testing you've done -->
 - [ ] Manual testing on Android
 - [ ] Manual testing on iOS
-- [ ] Manual testing on Desktop (Windows/Linux/macOS)
-- [ ] Manual testing on Web
 - [ ] Unit tests added/updated
 - [ ] All existing tests pass
 

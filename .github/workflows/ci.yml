@@ -5,8 +5,22 @@ on:
     branches: [ main, develop ]
     tags:
       - 'v*.*.*'
+    paths-ignore:
+      - '**/*.md'
+      - '*.md'
+      - 'LICENSE'
+      - '.github/FUNDING.yml'
+      - '.github/dependabot.yml'
+      - '.gitignore'
   pull_request:
     branches: [ main, develop ]
+    paths-ignore:
+      - '**/*.md'
+      - '*.md'
+      - 'LICENSE'
+      - '.github/FUNDING.yml'
+      - '.github/dependabot.yml'
+      - '.gitignore'
   workflow_dispatch:
 
 jobs:

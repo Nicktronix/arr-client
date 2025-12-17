@@ -18,7 +18,7 @@ Before creating a bug report, please check the existing issues to avoid duplicat
 - **Screenshots** if applicable
 - **Environment details**:
   - App version
-  - Platform (Android/iOS/Desktop/Web)
+  - Platform (Android/iOS)
   - OS version
   - Sonarr/Radarr version
 - **Error messages or logs** (redact sensitive information)
