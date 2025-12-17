@@ -84,65 +84,14 @@ jobs:
           path: build/app/outputs/flutter-apk/arr-client-*.apk
           retention-days: 90
 
-  build-ios:
-    name: Build iOS IPA
-    runs-on: macos-latest
-    needs: check-tag
-    if: needs.check-tag.outputs.has_tag == 'true'
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.check-tag.outputs.tag_name }}
-      
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.38.5'
-          channel: 'stable'
-          cache: true
-      
-      - name: Install dependencies
-        run: flutter pub get
-      
-      - name: Extract version
-        id: version
-        run: |
-          TAG=${{ needs.check-tag.outputs.tag_name }}
-          VERSION=${TAG#v}
-          echo "tag=$VERSION" >> $GITHUB_OUTPUT
-      
-      - name: Configure Xcode for Manual Signing
-        run: |
-          # Disable automatic signing and set empty development team
-          sed -i '' 's/DEVELOPMENT_TEAM = .*/DEVELOPMENT_TEAM = "";/' ios/Runner.xcodeproj/project.pbxproj
-          sed -i '' 's/ProvisioningStyle = Automatic/ProvisioningStyle = Manual/' ios/Runner.xcodeproj/project.pbxproj
-          
-          # Set code signing identity to adhoc (iPhone Distribution)
-          plutil -replace CODE_SIGN_IDENTITY -string "-" ios/Runner.xcodeproj/project.pbxproj || true
-      
-      - name: Build iOS (unsigned)
-        run: flutter build ios --release --no-codesign --build-name=${{ steps.version.outputs.tag }} --build-number=${{ github.run_number }}
-      
-      - name: Create unsigned IPA
-        run: |
-          mkdir -p build/ios/iphoneos/Payload
-          cp -r build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/
-          cd build/ios/iphoneos
-          zip -r arr-client-v${{ steps.version.outputs.tag }}-ios-unsigned.ipa Payload
-      
-      - name: Upload IPA artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: ios-ipa
-          path: build/ios/iphoneos/arr-client-*.ipa
-          retention-days: 90
+  # Note: iOS builds not included in CI/CD
+  # Requires Apple Developer account for code signing
+  # iOS users: Build locally with Xcode (see README.md for instructions)
 
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [check-tag, build-android, build-ios]
+    needs: [check-tag, build-android]
     if: needs.check-tag.outputs.has_tag == 'true'
     permissions:
       contents: write
@@ -166,12 +115,6 @@ jobs:
           name: android-apk
           path: ./artifacts
       
-      - name: Download iOS IPA
-        uses: actions/download-artifact@v7
-        with:
-          name: ios-ipa
-          path: ./artifacts
-      
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -182,7 +125,6 @@ jobs:
             
             ### 📦 Downloads
             - **Android**: arr-client-v${{ steps.version.outputs.tag }}-android.apk
-            - **iOS**: arr-client-v${{ steps.version.outputs.tag }}-ios-unsigned.ipa (unsigned - requires sideloading)
             
             ### 🚀 Installation Instructions
             
@@ -191,18 +133,32 @@ jobs:
             2. Enable "Install from Unknown Sources" in Android Settings
             3. Open the APK to install
             
-            **iOS** (requires sideloading):
-            The IPA is unsigned and must be signed before installation. Use one of these tools:
-            - **AltStore** (free, recommended): [altstore.io](https://altstore.io)
-            - **Sideloadly** (free): [sideloadly.io](https://sideloadly.io)
-            - **iOS App Signer** + Xcode (free, manual)
+            **iOS** (Build Locally):
+            iOS builds require code signing and are not provided in releases. To build for iOS:
             
-            Note: Sideloaded apps expire after 7 days (free Apple ID) or 1 year (paid developer account) and need re-signing.
+            1. Clone the repository:
+               ```bash
+               git clone https://github.com/${{ github.repository }}.git
+               cd arr-client
+               git checkout ${{ needs.check-tag.outputs.tag_name }}
+               ```
+            
+            2. Open in Xcode and configure signing:
+               ```bash
+               open ios/Runner.xcworkspace
+               ```
+               - Select your Development Team in Signing & Capabilities
+               - Xcode will automatically create a provisioning profile
+            
+            3. Build and install:
+               ```bash
+               flutter build ios --release
+               ```
+               Then use Xcode to install on your device, or create an IPA for sideloading with AltStore/Sideloadly.
             
             ### 📝 Changelog
             See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
           files: |
             ./artifacts/*.apk
-            ./artifacts/*.ipa
           draft: false
           prerelease: false
