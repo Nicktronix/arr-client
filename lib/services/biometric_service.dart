@@ -83,18 +83,15 @@ class BiometricService {
 
   /// Authenticate with biometrics
   /// Returns true if authentication succeeded, false otherwise
-  /// Throws PlatformException with details if authentication fails
+  /// Throws LocalAuthException with details if authentication fails
   Future<bool> authenticate({
     required String reason,
     bool biometricOnly = false,
   }) async {
     final bool didAuthenticate = await _localAuth.authenticate(
       localizedReason: reason,
-      options: AuthenticationOptions(
-        biometricOnly: biometricOnly,
-        useErrorDialogs: true,
-        stickyAuth: true,
-      ),
+      biometricOnly: biometricOnly,
+      persistAcrossBackgrounding: true, // v3.0.0: replaces stickyAuth
     );
 
     if (didAuthenticate) {
