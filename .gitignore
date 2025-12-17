@@ -1,0 +1,172 @@
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.mobileprovision
+secrets/
+firebase_options.dart
+
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+Thumbs.db
+
+# Flutter/Dart/Pub Related
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+doc/api/
+lib/generated_plugin_registrant.dart
+
+# Flutter Metadata & DevTools
+.metadata
+devtools_options.yaml
+
+# Code Generation (if used in future)
+*.g.dart
+*.freezed.dart
+*.mocks.dart
+*.config.dart
+
+# IDE Related
+# IntelliJ/Android Studio
+*.iml
+*.ipr
+*.iws
+.idea/
+*.hprof
+
+# VS Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Xcode
+**/xcuserdata/
+**/xcshareddata/WorkspaceSettings.xcsettings
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+DerivedData/
+**/*.xcodeproj/*
+!**/*.xcodeproj/project.pbxproj
+!**/*.xcworkspace/contents.xcworkspacedata
+
+# Android
+*.jks
+*.keystore
+key.properties
+**/android/local.properties
+**/android/.gradle/
+**/android/captures/
+**/android/gradlew
+**/android/gradlew.bat
+**/android/gradle-wrapper.jar
+**/android/.cxx/
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
+GeneratedPluginRegistrant.java
+
+# iOS
+**/ios/Flutter/.last_build_id
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/app.flx
+**/ios/Flutter/app.zip
+**/ios/Flutter/flutter_assets/
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/ServiceDefinitions.json
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/**/profile
+**/.symlinks/
+
+# Web
+**/web/*.js
+**/web/*.js.map
+**/web/*.part.js
+
+# Windows
+**/windows/flutter/ephemeral/
+**/windows/generated_plugin_registrant.cc
+**/windows/generated_plugin_registrant.h
+**/windows/generated_plugins.cmake
+
+# Linux
+**/linux/flutter/ephemeral/
+**/linux/generated_plugin_registrant.cc
+**/linux/generated_plugin_registrant.h
+**/linux/generated_plugins.cmake
+
+# macOS
+**/macos/Flutter/ephemeral/
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+
+# Symbolication & Obfuscation
+app.*.symbols
+app.*.map.json
+/app.android.bundle.symbols
+
+# Test Coverage
+/test/.test_coverage.dart
+/test_driver/
+lcov.info
+
+# Crash Reports & Logs
+crashlytics-build.properties
+fabric.properties
+**/crash_reports/
+
+# Temporary Files
+*.tmp
+*.temp
+*.bak
+*~
+
+# APKs & App Bundles (build artifacts)
+*.apk
+*.aab
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Fastlane (if added in future)
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots
+**/fastlane/test_output
+**/fastlane/.env
+**/fastlane/.env.*
+
+# FVM (Flutter Version Management, if used)
+.fvm/
+.fvmrc
