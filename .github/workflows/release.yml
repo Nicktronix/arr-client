@@ -113,10 +113,19 @@ jobs:
           VERSION=${TAG#v}
           echo "tag=$VERSION" >> $GITHUB_OUTPUT
       
-      - name: Build iOS (no code signing)
+      - name: Configure Xcode for Manual Signing
+        run: |
+          # Disable automatic signing and set empty development team
+          sed -i '' 's/DEVELOPMENT_TEAM = .*/DEVELOPMENT_TEAM = "";/' ios/Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/ProvisioningStyle = Automatic/ProvisioningStyle = Manual/' ios/Runner.xcodeproj/project.pbxproj
+          
+          # Set code signing identity to adhoc (iPhone Distribution)
+          plutil -replace CODE_SIGN_IDENTITY -string "-" ios/Runner.xcodeproj/project.pbxproj || true
+      
+      - name: Build iOS (unsigned)
         run: flutter build ios --release --no-codesign --build-name=${{ steps.version.outputs.tag }} --build-number=${{ github.run_number }}
       
-      - name: Create IPA
+      - name: Create unsigned IPA
         run: |
           mkdir -p build/ios/iphoneos/Payload
           cp -r build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/
@@ -173,19 +182,22 @@ jobs:
             
             ### 📦 Downloads
             - **Android**: arr-client-v${{ steps.version.outputs.tag }}-android.apk
-            - **iOS**: arr-client-v${{ steps.version.outputs.tag }}-ios-unsigned.ipa (requires sideloading)
+            - **iOS**: arr-client-v${{ steps.version.outputs.tag }}-ios-unsigned.ipa (unsigned - requires sideloading)
             
             ### 🚀 Installation Instructions
             
             **Android**:
-            1. Download the APK
-            2. Enable "Install from Unknown Sources" in Settings
+            1. Download the APK file
+            2. Enable "Install from Unknown Sources" in Android Settings
             3. Open the APK to install
             
-            **iOS** (requires sideloading tool):
-            - Use AltStore, Sideloadly, or similar tool
-            - Unsigned IPA valid for 7 days (needs renewal)
-            - Or use TestFlight for better experience
+            **iOS** (requires sideloading):
+            The IPA is unsigned and must be signed before installation. Use one of these tools:
+            - **AltStore** (free, recommended): [altstore.io](https://altstore.io)
+            - **Sideloadly** (free): [sideloadly.io](https://sideloadly.io)
+            - **iOS App Signer** + Xcode (free, manual)
+            
+            Note: Sideloaded apps expire after 7 days (free Apple ID) or 1 year (paid developer account) and need re-signing.
             
             ### 📝 Changelog
             See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
