@@ -2,7 +2,9 @@
 
 ## Overview
 
-This project uses GitHub Actions for automated testing, security scanning, and release builds. The workflow automatically creates releases with Android APK and iOS IPA when you merge a release branch to main.
+This project uses GitHub Actions for automated testing, security scanning, and release builds. The workflow automatically creates releases with Android APK when you merge a release branch to main.
+
+**Note**: iOS builds are not included in CI/CD and must be built locally. See the iOS build section below for instructions.
 
 ## Workflow Stages
 
@@ -27,15 +29,15 @@ This project uses GitHub Actions for automated testing, security scanning, and r
 - Triggers build workflow when tag is created
 
 ### 5. **Build** (Runs ONLY on version tags)
-- Android APK build (macOS runner not required)
-- iOS IPA build (requires macOS runner, unsigned for sideloading)
+- Android APK build (Ubuntu runner)
 - Version embedded from git tag
 - Artifacts stored for 90 days
+- **iOS builds**: Not included - see iOS Build Instructions section
 
 ### 6. **Release** (Runs ONLY on version tags)
 - Creates GitHub Release automatically
-- Attaches APK and IPA as downloadable assets
-- Generates release notes with download instructions
+- Attaches Android APK as downloadable asset
+- Generates release notes with Android and iOS build instructions
 
 ## Git Branching Strategy
 
@@ -239,13 +241,12 @@ version: 1.2.3+456
    - Go to Actions tab in GitHub
    - Watch the workflow progress
    - Auto-tag job runs immediately after merge
-   - Build jobs trigger when tag is created
+   - Build job triggers when tag is created
    - Android build takes ~5-10 minutes
-   - iOS build takes ~10-15 minutes (on GitHub's macOS runners)
 
 4. **Access Release**
    - Once complete, go to Releases section
-   - Download APK/IPA from release assets
+   - Download APK from release assets
    - Share release URL with users
 
 ### Distributing Builds
@@ -265,26 +266,60 @@ Once the release is created, you can distribute builds to users.
 https://github.com/Nicktronix/arr-client/releases/latest
 ```
 
-#### iOS Distribution (More Complex)
+#### iOS Build Instructions
 
-iOS doesn't allow direct IPA installation. Friends need one of these tools:
+iOS builds require code signing and are not provided in GitHub releases. Users must build locally:
 
-**Option 1: AltStore** (Free, requires computer)
-- Install AltStore on computer
-- Connect iPhone
-- Sideload the IPA (valid for 7 days, needs renewal)
+**Prerequisites**:
+- macOS with Xcode installed
+- Flutter SDK installed
+- Apple ID (free or paid Apple Developer account)
 
-**Option 2: Sideloadly** (Free, easier)
-- Install Sideloadly on computer
-- Connect iPhone
-- Drag IPA to Sideloadly (valid for 7 days)
+**Build Steps**:
 
-**Option 3: TestFlight** (Best for iOS, requires Apple Developer account)
-- Requires $99/year Apple Developer Program
-- Upload to TestFlight
-- Share invite link (100 testers max)
-- No 7-day expiration
-- (Not configured in current workflow)
+1. **Clone at release tag**:
+   ```bash
+   git clone https://github.com/Nicktronix/arr-client.git
+   cd arr-client
+   git checkout v1.2.3  # Replace with desired version
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   flutter pub get
+   ```
+
+3. **Open Xcode workspace**:
+   ```bash
+   open ios/Runner.xcworkspace
+   ```
+
+4. **Configure signing** (in Xcode):
+   - Select "Runner" project in navigator
+   - Select "Runner" target
+   - Go to "Signing & Capabilities" tab
+   - Select your Development Team (sign in with Apple ID if needed)
+   - Xcode will automatically create provisioning profile
+
+5. **Build**:
+   ```bash
+   flutter build ios --release
+   ```
+
+6. **Install options**:
+   - **Direct Install**: Use Xcode to install on connected device
+   - **Create IPA for Sideloading**:
+     ```bash
+     # Create Payload directory
+     mkdir -p Payload
+     cp -r build/ios/iphoneos/Runner.app Payload/
+     zip -r arr-client.ipa Payload
+     ```
+     Then use AltStore or Sideloadly to install the IPA
+
+**Notes**:
+- Free Apple ID: Apps expire after 7 days, need re-signing
+- Paid Developer Account ($99/year): Apps valid for 1 year
 
 ---
 
@@ -307,11 +342,10 @@ For basic setup, no secrets needed! The workflow works out of the box.
 
 **GitHub-Hosted Runners** (Free for public repos):
 - ✅ Android builds work on Ubuntu runners
-- ✅ iOS builds work on macOS runners (included!)
 - ✅ 2,000 minutes/month free for private repos
 - ✅ Unlimited for public repos
 
-No self-hosted runner needed for this project!
+No self-hosted runner needed for Android builds! iOS requires local building with Xcode.
 
 ## Security Scanning
 

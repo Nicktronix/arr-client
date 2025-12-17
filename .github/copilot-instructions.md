@@ -842,8 +842,8 @@ flutter run -d android
 #      - test: flutter test with coverage
 #      - security: flutter pub outdated
 #      - build-android: APK artifact
-#      - build-ios: IPA artifact
-#      - create-release: GitHub Release with artifacts
+#      - create-release: GitHub Release with APK
+# Note: iOS builds not in CI/CD - users build locally
 
 # 6. Merge release branch back to develop
 git checkout develop
@@ -878,15 +878,16 @@ See `RELEASE.md` for complete workflow and examples.
 - **After merge to develop**: Workflow runs again (validates merged state)
 - **Pull Requests to main**: Triggers analyze, test, security (validates release)
 - **After merge to main**: Auto-tags with version from pubspec.yaml
-- **Version Tags on main** (v1.2.3): Triggers Android/iOS builds + GitHub release creation
+- **Version Tags on main** (v1.2.3): Triggers Android build + GitHub release creation
 - **Feature branches**: No workflow runs (test locally with `flutter test` and `flutter analyze`)
+- **iOS Builds**: Not in CI/CD - users build locally with Xcode (requires code signing)
 
 **.gitignore Coverage**:
 ```gitignore
 # Build outputs
 build/
 *.apk
-*.ipa
+*.ipa  # Local iOS builds only (not in CI/CD)
 *.aab
 
 # Flutter/Dart
