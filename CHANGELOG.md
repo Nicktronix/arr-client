@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Episode detail screen** with comprehensive information
+  - Full episode metadata (title, overview, air date, runtime)
+  - Status badges (Downloaded/Missing/Upcoming, Monitored/Unmonitored)
+  - File information with quality, size, and custom formats
+  - Custom format chips with visual tags
+  - Media information grid (video codec, resolution, audio channels, etc.)
+  - Release group and language information
+  - File path display
+  - Tap episode cards in season view to drill down into details
+- **Enhanced movie detail screen**
+  - Comprehensive file information display
+  - Custom format chips with CF score color coding
+  - Media information grid
+  - Release group, languages, and date added
+  - File path display with monospace font
+- **Monitoring toggles** for episodes and movies
+  - Instant UI feedback with optimistic updates
+  - Automatic rollback on API errors
+  - Visual icons (eye/eye-off) in app bar
+- **File deletion** capabilities
+  - Delete episode files with confirmation dialog
+  - Delete movie files with confirmation dialog
+  - Automatic detail refresh after deletion
+- **Enhanced action menus** in detail screens
+  - PopupMenuButton pattern for organized actions
+  - Conditional menu items based on file status
+  - Color-coded destructive actions (red delete buttons)
+  - Automatic/interactive search options
+
+### Changed
+- Season detail screen episode cards now tappable for navigation to episode details
+- Movie detail screen uses PopupMenuButton for actions (replaces action section)
+- API client now supports custom timeout parameter for slow endpoints
+- Release searches use extended 60-second timeout (improved for slow indexers)
+
+### Improved
+- **Code quality and maintainability**
+  - Added input validation to service methods (ID checks)
+  - Refactored InstanceManager with generic methods to reduce duplication
+  - Improved error message sanitization in API client
+  - Enhanced cache overflow protection with debug logging
+  - Safer iteration patterns (replaced `.firstWhere()` with for loops)
+- **Service layer enhancements**
+  - `SonarrService.updateEpisode()` - Full object fetch/merge pattern
+  - `SonarrService.deleteEpisodeFile()` - Delete episode files
+  - `SonarrService.searchEpisode()` - Trigger automatic episode search
+  - `RadarrService.deleteMovieFile()` - Delete movie files
+  - Extended timeout support in API methods
+
 ## [1.0.0] - 2025-12-17
 
 ### Added
@@ -96,7 +148,9 @@ Security vulnerability fixes and improvements.
 
 ## Version History
 
+- **[Unreleased]** - Development branch (not yet released)
 - **[1.0.0]** - 2025-12-17 - Initial Public Release
 
 <!-- Link Definitions -->
+[Unreleased]: https://github.com/Nicktronix/arr-client/compare/v1.0.0...develop
 [1.0.0]: https://github.com/Nicktronix/arr-client/releases/tag/v1.0.0

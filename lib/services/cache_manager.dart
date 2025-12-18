@@ -1,5 +1,8 @@
+import 'package:flutter/foundation.dart';
+
 /// Centralized cache manager for API responses
 /// Handles instance-specific caching with time-based invalidation and memory management
+/// WARNING: Only use for non-sensitive API responses. Never cache credentials or API keys.
 class CacheManager {
   static final CacheManager _instance = CacheManager._internal();
   factory CacheManager() => _instance;
@@ -46,10 +49,17 @@ class CacheManager {
   }
 
   /// Set cached data for a given key
+  /// Note: Does not cache sensitive data (use for API responses only)
   void set(String key, dynamic data) {
     // Evict old entries if cache is full
     if (_cache.length >= maxCacheEntries && !_cache.containsKey(key)) {
       _evictLeastRecentlyUsed();
+
+      // If still at limit after eviction, refuse to cache to prevent unbounded growth
+      if (_cache.length >= maxCacheEntries) {
+        debugPrint('Cache full, refusing to add new entry: $key');
+        return;
+      }
     }
 
     _cache[key] = data;

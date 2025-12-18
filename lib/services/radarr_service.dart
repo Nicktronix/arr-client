@@ -66,6 +66,9 @@ class RadarrService {
 
   /// Get movie by ID
   Future<Map<String, dynamic>> getMovieById(int id) async {
+    if (id <= 0) {
+      throw ArgumentError('Invalid movie ID: $id');
+    }
     final client = await _api;
     return await client.get('/movie/$id');
   }
@@ -112,6 +115,9 @@ class RadarrService {
 
   /// Delete movie
   Future<void> deleteMovie(int id, {bool deleteFiles = false}) async {
+    if (id <= 0) {
+      throw ArgumentError('Invalid movie ID: $id');
+    }
     final client = await _api;
     await client.delete('/movie/$id?deleteFiles=$deleteFiles');
   }
@@ -150,9 +156,13 @@ class RadarrService {
   }
 
   /// Search for releases for a specific movie (interactive search)
+  /// Uses extended 60s timeout as release searches can be slow
   Future<List<dynamic>> searchMovieReleases(int movieId) async {
     final client = await _api;
-    return await client.get('/release?movieId=$movieId');
+    return await client.get(
+      '/release?movieId=$movieId',
+      timeout: const Duration(seconds: 60),
+    );
   }
 
   /// Download a specific release
@@ -190,5 +200,11 @@ class RadarrService {
   Future<void> testAllIndexers() async {
     final client = await _api;
     await client.post('/indexer/testall', {});
+  }
+
+  /// Delete a movie file by ID
+  Future<void> deleteMovieFile(int movieFileId) async {
+    final client = await _api;
+    await client.delete('/moviefile/$movieFileId');
   }
 }

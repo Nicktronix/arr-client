@@ -3,9 +3,12 @@
 ## Documentation Policy
 
 **Principle: Code Over Documentation Files**
-- **README.md**: Primary documentation (overview, setup, features, troubleshooting)
-- **RELEASE.md**: GitHub Actions workflow and release process guide
-- **.github/copilot-instructions.md**: This file - architecture and development patterns
+- **README.md**: Public-facing documentation (features, quick start, troubleshooting)
+- **CHANGELOG.md**: Version history and feature changes (follow Keep a Changelog format)
+- **RELEASE.md**: GitHub Actions workflow, release process, and branching strategy
+- **CONTRIBUTING.md**: Contribution guidelines and coding standards
+- **SECURITY.md**: Security policy and vulnerability reporting (rarely needs updates)
+- **.github/copilot-instructions.md**: This file - architecture patterns for AI agents and developers
 
 **DO NOT CREATE**:
 - DEPLOYMENT_SUMMARY.md, SETUP_GUIDE.md, ARCHITECTURE_DOC.md, or similar files
@@ -14,14 +17,32 @@
 
 **When User Asks for Help**:
 - Provide clear instructions **in chat response**
-- Update README.md only if it's core user-facing documentation
+- Update README.md only for user-facing features or setup changes
+- Update CHANGELOG.md when adding features or making notable changes
+- Update CONTRIBUTING.md for contributor guidelines
+- Update RELEASE.md only for workflow or branching strategy changes
 - Update this file only for new architectural patterns or critical workflow changes
 
 **Documentation Maintenance**:
-- Keep README concise and user-focused (setup, features, usage)
-- Keep this file focused on development patterns and architecture
+- Keep README user-focused (what users can do with the app)
+- Keep CHANGELOG.md following [Keep a Changelog](https://keepachangelog.com/) format
+- Keep RELEASE.md focused on release mechanics and git workflow
+- Keep CONTRIBUTING.md contributor-focused (how to contribute code)
+- Keep this file developer-focused (architecture and patterns)
 - Remove outdated information when refactoring
 - Prefer inline code comments for complex logic over external docs
+
+**CHANGELOG Updates**:
+- Add entries to `[Unreleased]` section when making changes on develop branch
+- Follow format: Added/Changed/Deprecated/Removed/Fixed/Security
+- Move to versioned section only when creating a release
+- See CHANGELOG.md for format examples
+
+**Release Strategy** (See RELEASE.md for full details):
+- **develop** → integration testing, all features merge here first
+- **release/vX.Y.Z** → created from main, selective cherry-picks from develop
+- **main** → production releases only, auto-tagged after merge
+- **Version tags** (vX.Y.Z) → trigger GitHub Actions build and release
 
 ## Architecture Overview
 
@@ -113,7 +134,15 @@ for (var show in series) {
 ## UI Patterns
 
 ### CachedDataLoader Mixin Pattern
-**All data-loading screens use the CachedDataLoader mixin** for consistent behavior:
+**Use CachedDataLoader for list/collection screens that benefit from caching:**
+- Series list, movie list, queue screen
+- Screens that load collections of items
+- Screens where stale data is acceptable during refresh
+
+**Do NOT use for detail/search screens:**
+- Episode detail, movie detail, series detail
+- Search screens (always need fresh results)
+- Screens that show single items by ID (always fetch fresh)
 
 ```dart
 class ScreenName extends StatefulWidget { ... }
@@ -192,8 +221,19 @@ onChanged: (value) async {
 }
 ```
 
-### Legacy Three-State Screen Pattern (For Non-Data Screens)
-**Search/detail screens without caching** follow manual pattern (see `lib/screens/series_search_screen.dart`):
+### Manual Three-State Pattern (For Detail/Search Screens)
+**Detail and search screens always use manual three-state pattern:**
+- Episode detail (`episode_detail_screen.dart`)
+- Movie detail (`movie_detail_screen.dart`) 
+- Series detail (`series_detail_screen.dart`)
+- Search screens (`series_search_screen.dart`)
+
+These screens **should NOT use CachedDataLoader** because they:
+- Need fresh data on every load (details may have changed)
+- Show single items rather than collections
+- Benefit from immediate loading state (no cache check delay)
+
+**Standard implementation pattern:**
 
 ```dart
 class ScreenName extends StatefulWidget { ... }
@@ -253,6 +293,61 @@ class _ScreenNameState extends State<ScreenName> {
   }
 }
 ```
+
+### Detail Screen Action Menu Pattern
+Detail screens use **PopupMenuButton** for actions instead of FloatingActionButton:
+
+```dart
+appBar: AppBar(
+  title: Text('Detail Title'),
+  actions: [
+    // Toggle button for monitoring state
+    if (item != null)
+      IconButton(
+        icon: Icon(item['monitored'] ? Icons.visibility : Icons.visibility_off),
+        onPressed: _toggleMonitoring,
+        tooltip: item['monitored'] ? 'Disable monitoring' : 'Enable monitoring',
+      ),
+    // Menu for multiple actions
+    if (item != null)
+      PopupMenuButton<String>(
+        onSelected: (value) {
+          switch (value) {
+            case 'search': _searchItem(); break;
+            case 'interactive_search': _openInteractiveSearch(); break;
+            case 'delete': _deleteFile(); break;
+          }
+        },
+        itemBuilder: (context) => [
+          if (!item['hasFile'])
+            const PopupMenuItem(
+              value: 'search',
+              child: Row(children: [Icon(Icons.search), SizedBox(width: 8), Text('Automatic Search')]),
+            ),
+          const PopupMenuItem(
+            value: 'interactive_search',
+            child: Row(children: [Icon(Icons.manage_search), SizedBox(width: 8), Text('Interactive Search')]),
+          ),
+          if (item['hasFile'])
+            const PopupMenuItem(
+              value: 'delete',
+              child: Row(children: [
+                Icon(Icons.delete, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Delete File', style: TextStyle(color: Colors.red)),
+              ]),
+            ),
+        ],
+      ),
+  ],
+),
+```
+
+**Key Features**:
+- Conditional menu items based on state (hasFile, etc.)
+- Destructive actions in red
+- Icons for visual clarity
+- Tooltip for monitoring toggle
 
 ### Empty State Pattern
 When data is empty (not error), show icon + descriptive message + CTA:
@@ -481,6 +576,31 @@ try {
 - Converts generic errors to user-friendly text
 - Limits length to prevent massive errors
 
+### Extended Timeout Pattern
+**Some API endpoints are slow and need extended timeouts:**
+
+```dart
+// Release searches can take 30-60+ seconds
+Future<List<dynamic>> searchEpisodeReleases(int episodeId) async {
+  final client = await _api;
+  return await client.get(
+    '/release?episodeId=$episodeId',
+    timeout: const Duration(seconds: 60),  // Extended from default 30s
+  );
+}
+```
+
+**Endpoints that need extended timeouts**:
+- `/release?episodeId=` (Sonarr release search)
+- `/release?movieId=` (Radarr release search)
+- Any search operations that query multiple indexers
+
+**ApiClient signature** supports optional timeout:
+```dart
+Future<dynamic> get(String endpoint, {Duration? timeout}) async
+Future<dynamic> post(String endpoint, Map<String, dynamic> data, {Duration? timeout}) async
+```
+
 ### ApiClient Error Handling
 `ApiClient` in `lib/services/api_client.dart` handles HTTP status codes:
 - 401 → "Unauthorized - check your API key"
@@ -504,6 +624,52 @@ Navigator.push(
   ),
 );
 ```
+
+### Optimistic UI Update Pattern
+**For toggle operations (monitoring, etc.), update UI immediately then API:**
+
+```dart
+Future<void> _toggleMonitoring() async {
+  if (_item == null) return;
+
+  final currentState = _item!['monitored'] ?? false;
+
+  try {
+    // 1. Optimistically update UI
+    setState(() {
+      _item!['monitored'] = !currentState;
+    });
+
+    // 2. Update via API
+    final updatedItem = Map<String, dynamic>.from(_item!);
+    updatedItem['monitored'] = !currentState;
+    await _service.updateItem(updatedItem);
+
+    // 3. Show success feedback
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(!currentState ? 'Enabled' : 'Disabled')),
+      );
+    }
+  } catch (e) {
+    // 4. Revert on error
+    setState(() {
+      _item!['monitored'] = currentState;
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed: ${ErrorFormatter.format(e)}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+}
+```
+
+**Benefits**: Instant visual feedback, graceful error handling with rollback.
 
 ### Instance Switching Flow
 **All switching paths use the same unified pattern:**
@@ -621,6 +787,47 @@ await _prefs.setString('sonarr_instances', jsonEncode([
 - **Android**: `encryptedSharedPreferences: true` for Keystore integration
 - **Web**: Web Cryptography API
 - **Desktop**: Platform-specific secure storage (Keychain/DPAPI/libsecret)
+
+### InstanceManager Refactoring Pattern
+**Generic methods reduce code duplication for Sonarr/Radarr operations:**
+
+```dart
+// Generic method for loading instances with credentials
+Future<List<ServiceInstance>> _getInstances(String serviceType) async {
+  final key = serviceType == 'sonarr' ? _sonarrInstancesKey : _radarrInstancesKey;
+  final jsonString = _preferences.getString(key);
+  if (jsonString == null) return [];
+
+  final List<dynamic> jsonList = jsonDecode(jsonString);
+  final List<ServiceInstance> instances = [];
+
+  for (var json in jsonList) {
+    final instance = await _loadInstanceCredentials(json, serviceType);
+    instances.add(instance);
+  }
+  return instances;
+}
+
+// Generic method for metadata-only access (fast, no secure storage)
+List<Map<String, dynamic>> _getInstancesMetadata(String serviceType) {
+  final key = serviceType == 'sonarr' ? _sonarrInstancesKey : _radarrInstancesKey;
+  final jsonString = _preferences.getString(key);
+  if (jsonString == null) return [];
+  return List<Map<String, dynamic>>.from(jsonDecode(jsonString));
+}
+
+// Public methods delegate to generic implementations
+Future<List<ServiceInstance>> getSonarrInstances() => _getInstances('sonarr');
+Future<List<ServiceInstance>> getRadarrInstances() => _getInstances('radarr');
+List<Map<String, dynamic>> getSonarrInstancesMetadata() => _getInstancesMetadata('sonarr');
+List<Map<String, dynamic>> getRadarrInstancesMetadata() => _getInstancesMetadata('radarr');
+```
+
+**Benefits**:
+- Eliminates code duplication between Sonarr/Radarr methods
+- Easier to maintain (single implementation for both services)
+- Type-safe with proper return types
+- Consistent behavior across services
 
 ### Backup & Restore Service
 **BackupService** (`lib/services/backup_service.dart`) provides encrypted backup/restore with isolate-based crypto:
@@ -860,6 +1067,7 @@ See `RELEASE.md` for complete workflow and examples.
 ## Version Control
 
 **Git Workflow** (Modified Git Flow with Release Branches):
+- **Public GitHub Repository**: https://github.com/Nicktronix/arr-client
 - **develop branch**: Default branch, integration testing (protected)
 - **main branch**: Release-only branch, stable code (protected)
 - **Feature branches**: Create from develop for isolated testing
@@ -915,7 +1123,7 @@ Pods/
 
 ## Common Pitfalls
 
-1. **Use CachedDataLoader for data screens**: Don't implement manual loading states
+1. **Use CachedDataLoader for list/collection screens only**: Detail and search screens use manual three-state pattern
 2. **AppStateManager is single source of truth**: Never access InstanceManager directly in screens
 3. **Always handle null**: Use `??` operators extensively - `series['title'] ?? 'Unknown'`
 4. **Check lists before accessing**: `(series['seasons'] as List?)?.length ?? 0`
@@ -953,6 +1161,7 @@ Pods/
 - `lib/screens/series_list_screen.dart` - **Reference implementation** of CachedDataLoader mixin
 - `lib/screens/movie_list_screen.dart` - CachedDataLoader pattern for Radarr
 - `lib/screens/queue_screen.dart` - Dual-service screen with CachedDataLoader
-- `lib/screens/series_search_screen.dart` - Legacy pattern for non-cached screens
-- `lib/screens/series_detail_screen.dart` - Detail view without caching
+- `lib/screens/series_search_screen.dart` - Manual three-state pattern for search screens
+- `lib/screens/series_detail_screen.dart` - Manual three-state pattern for detail screens
+- `lib/screens/episode_detail_screen.dart` - **Comprehensive detail screen** with file info, monitoring, and actions
 - `lib/screens/release_search_screen.dart` - **Unified release confirmation dialog** for both series/movies, custom format chips, relative date formatting

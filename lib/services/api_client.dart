@@ -33,38 +33,38 @@ class ApiClient {
   }
 
   /// Make a GET request to the API
-  Future<dynamic> get(String endpoint) async {
+  Future<dynamic> get(String endpoint, {Duration? timeout}) async {
     final uri = Uri.parse('$baseUrl/api/v3$endpoint');
 
     try {
       final response = await _httpClient
           .get(uri, headers: _headers)
-          .timeout(_timeout);
+          .timeout(timeout ?? _timeout);
 
       return _handleResponse(response);
     } on TimeoutException {
       throw ApiException('Request timed out - please try again');
     } on http.ClientException catch (e) {
-      throw ApiException('Connection error: ${e.message}');
+      throw ApiException('Connection error: ${_sanitizeMessage(e.message)}');
     } catch (e) {
-      throw ApiException('Network error: $e');
+      throw ApiException('Network error: ${_sanitizeMessage(e.toString())}');
     }
   }
 
   /// Make a POST request to the API
-  Future<dynamic> post(String endpoint, Map<String, dynamic> data) async {
+  Future<dynamic> post(String endpoint, Map<String, dynamic> data, {Duration? timeout}) async {
     final uri = Uri.parse('$baseUrl/api/v3$endpoint');
 
     try {
       final response = await _httpClient
           .post(uri, headers: _headers, body: json.encode(data))
-          .timeout(_timeout);
+          .timeout(timeout ?? _timeout);
 
       return _handleResponse(response);
     } on http.ClientException catch (e) {
-      throw ApiException('Connection error: ${e.message}');
+      throw ApiException('Connection error: ${_sanitizeMessage(e.message)}');
     } catch (e) {
-      throw ApiException('Network error: $e');
+      throw ApiException('Network error: ${_sanitizeMessage(e.toString())}');
     }
   }
 
@@ -79,9 +79,9 @@ class ApiClient {
 
       return _handleResponse(response);
     } on http.ClientException catch (e) {
-      throw ApiException('Connection error: ${e.message}');
+      throw ApiException('Connection error: ${_sanitizeMessage(e.message)}');
     } catch (e) {
-      throw ApiException('Network error: $e');
+      throw ApiException('Network error: ${_sanitizeMessage(e.toString())}');
     }
   }
 
@@ -96,9 +96,9 @@ class ApiClient {
 
       return _handleResponse(response);
     } on http.ClientException catch (e) {
-      throw ApiException('Connection error: ${e.message}');
+      throw ApiException('Connection error: ${_sanitizeMessage(e.message)}');
     } catch (e) {
-      throw ApiException('Network error: $e');
+      throw ApiException('Network error: ${_sanitizeMessage(e.toString())}');
     }
   }
 
@@ -143,6 +143,25 @@ class ApiClient {
     } else {
       throw ApiException(errorMessage);
     }
+  }
+
+  /// Sanitize error messages to remove credentials and sensitive data
+  String _sanitizeMessage(String message) {
+    // Remove anything that looks like credentials from URLs
+    return message
+        .replaceAll(RegExp(r'://[^:@]+:[^:@]+@'), '://***:***@')
+        .replaceAll(
+          RegExp(r'apikey=[^&\s]+', caseSensitive: false),
+          'apikey=***',
+        )
+        .replaceAll(
+          RegExp(r'api_key=[^&\s]+', caseSensitive: false),
+          'api_key=***',
+        )
+        .replaceAll(
+          RegExp(r'X-Api-Key:\s*[^\s]+', caseSensitive: false),
+          'X-Api-Key: ***',
+        );
   }
 
   String _getStatusMessage(int statusCode) {

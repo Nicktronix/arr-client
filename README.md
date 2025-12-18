@@ -13,8 +13,8 @@ A mobile client for [Sonarr](https://sonarr.tv/) and [Radarr](https://radarr.vid
 
 ## ✨ Features
 
-- 📺 **Sonarr**: Browse, search, and add TV series • Manage episodes and seasons • Interactive release search
-- 🎬 **Radarr**: Browse, search, and add movies • View details and quality info • Manual movie searches
+- 📺 **Sonarr**: Browse, search, and add TV series • Episode detail view with comprehensive file info • Toggle monitoring • Delete episode files • Interactive release search
+- 🎬 **Radarr**: Browse, search, and add movies • Enhanced movie details with custom formats • Toggle monitoring • Delete movie files • Manual movie searches
 - 📥 **Downloads**: Unified queue for both services • Real-time progress tracking • Detailed release browser
 - 🔄 **Multi-Instance**: Manage multiple Sonarr/Radarr servers • Easy switching • Secure credential storage
 - 🔒 **Security**: Biometric authentication • Encrypted backups • Platform keychain/keystore integration
