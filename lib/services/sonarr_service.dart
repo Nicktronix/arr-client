@@ -273,6 +273,16 @@ class SonarrService {
   /// Import selected manual import items
   Future<void> performManualImport(List<Map<String, dynamic>> imports) async {
     final client = await _api;
-    await client.post('/command', {'name': 'ManualImport', 'files': imports});
+    await client.post('/command', {
+      'name': 'ManualImport',
+      'files': imports,
+      'importMode': 'auto',
+    });
+  }
+
+  /// Get quality profile schema for manual import editing
+  Future<Map<String, dynamic>> getQualityProfileSchema() async {
+    final client = await _api;
+    return await client.get('/qualityprofile/schema');
   }
 }
