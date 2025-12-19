@@ -89,6 +89,23 @@ class ApiClient {
     }
   }
 
+  /// Make a PUT request with a list to the API
+  Future<dynamic> putList(String endpoint, List<dynamic> data) async {
+    final uri = Uri.parse('$baseUrl/api/v3$endpoint');
+
+    try {
+      final response = await _httpClient
+          .put(uri, headers: _headers, body: json.encode(data))
+          .timeout(_timeout);
+
+      return _handleResponse(response);
+    } on http.ClientException catch (e) {
+      throw ApiException('Connection error: ${_sanitizeMessage(e.message)}');
+    } catch (e) {
+      throw ApiException('Network error: ${_sanitizeMessage(e.toString())}');
+    }
+  }
+
   /// Make a DELETE request to the API
   Future<dynamic> delete(String endpoint) async {
     final uri = Uri.parse('$baseUrl/api/v3$endpoint');

@@ -108,6 +108,27 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
           .map((i) => _importCandidates[i] as Map<String, dynamic>)
           .toList();
 
+      // Ensure required fields are present for each import
+      for (var import in imports) {
+        // Convert episodes array to episodeIds array if needed
+        if (import['episodes'] != null && import['episodeIds'] == null) {
+          final episodes = import['episodes'] as List;
+          import['episodeIds'] = episodes.map((ep) => ep['id']).toList();
+        }
+        
+        // Ensure seriesId is present (from series object)
+        if (import['seriesId'] == null && import['series'] != null) {
+          import['seriesId'] = import['series']['id'];
+        }
+        
+        // Ensure movieId is present (from movie object)
+        if (widget.source == 'radarr' && 
+            import['movieId'] == null && 
+            import['movie'] != null) {
+          import['movieId'] = import['movie']['id'];
+        }
+      }
+
       if (widget.source == 'sonarr') {
         await _sonarr.performManualImport(imports);
       } else {
@@ -621,61 +642,21 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
   }
 
   Future<void> _showEditDialog(Map<String, dynamic> candidate, int index) async {
-    // TODO: Implement full edit dialog
-    // For now, show a placeholder dialog
-    await showDialog(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Import Match'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              candidate['relativePath'] ?? 'Unknown',
-              style: const TextStyle(fontSize: 12),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Edit functionality coming soon:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              widget.source == 'sonarr'
-                  ? '\u2022 Select series\n'
-                      '\u2022 Select season and episodes\n'
-                      '\u2022 Override quality\n'
-                      '\u2022 Set release group\n'
-                      '\u2022 Select languages'
-                  : '\u2022 Select movie\n'
-                      '\u2022 Override quality\n'
-                      '\u2022 Set release group\n'
-                      '\u2022 Select languages',
-              style: TextStyle(fontSize: 13, color: Colors.grey[700]),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Text(
-                'For now, you can still import files as-is by selecting them. The API will use the current matches.',
-                style: TextStyle(fontSize: 12),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
+      builder: (context) => _EditImportDialog(
+        candidate: candidate,
+        source: widget.source,
+        sonarrService: _sonarr,
+        radarrService: _radarr,
       ),
     );
+
+    if (result != null && mounted) {
+      setState(() {
+        _importCandidates[index] = result;
+      });
+    }
   }
 
   String _formatBytes(int bytes) {
@@ -685,5 +666,484 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
       return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     }
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+}
+
+// Edit dialog for modifying import matches
+class _EditImportDialog extends StatefulWidget {
+  final Map<String, dynamic> candidate;
+  final String source;
+  final SonarrService sonarrService;
+  final RadarrService radarrService;
+
+  const _EditImportDialog({
+    required this.candidate,
+    required this.source,
+    required this.sonarrService,
+    required this.radarrService,
+  });
+
+  @override
+  State<_EditImportDialog> createState() => _EditImportDialogState();
+}
+
+class _EditImportDialogState extends State<_EditImportDialog> {
+  late Map<String, dynamic> _editedCandidate;
+  bool _isLoadingQualities = true;
+  List<Map<String, dynamic>> _availableQualities = [];
+  
+  // Search state
+  bool _isSearching = false;
+  List<dynamic> _searchResults = [];
+  
+  // Selected values
+  Map<String, dynamic>? _selectedItem; // series or movie
+  int? _selectedSeasonNumber;
+  Set<int> _selectedEpisodeIds = {};
+  List<dynamic> _availableEpisodes = [];
+  bool _isLoadingEpisodes = false;
+  Map<String, dynamic>? _selectedQuality;
+  List<String> _selectedLanguages = [];
+  String _releaseGroup = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _editedCandidate = Map<String, dynamic>.from(widget.candidate);
+    _initializeValues();
+    _loadQualities();
+    
+    // If series and season are already selected, load episodes
+    if (widget.source == 'sonarr' && 
+        _selectedItem != null && 
+        _selectedSeasonNumber != null) {
+      _loadEpisodesForSeason(_selectedSeasonNumber!);
+    }
+  }
+
+  void _initializeValues() {
+    // Initialize from existing candidate
+    _selectedItem = widget.source == 'sonarr'
+        ? _editedCandidate['series']
+        : _editedCandidate['movie'];
+    
+    _selectedSeasonNumber = _editedCandidate['seasonNumber'];
+    
+    final episodes = _editedCandidate['episodes'] as List?;
+    if (episodes != null) {
+      _selectedEpisodeIds = episodes.map((e) => e['id'] as int).toSet();
+    }
+    
+    _selectedQuality = _editedCandidate['quality']?['quality'];
+    
+    final languages = _editedCandidate['languages'] as List?;
+    if (languages != null) {
+      _selectedLanguages = languages.map((l) => l['name'].toString()).toList();
+    }
+    
+    _releaseGroup = _editedCandidate['releaseGroup'] ?? '';
+  }
+
+  Future<void> _loadQualities() async {
+    try {
+      final schema = widget.source == 'sonarr'
+          ? await widget.sonarrService.getQualityProfileSchema()
+          : await widget.radarrService.getQualityProfileSchema();
+      
+      final items = schema['items'] as List?;
+      if (items != null) {
+        final qualities = <Map<String, dynamic>>[];
+        final seenIds = <int>{};
+        
+        for (var item in items) {
+          if (item['quality'] != null) {
+            final quality = item['quality'] as Map<String, dynamic>;
+            final id = quality['id'] as int?;
+            if (id != null && !seenIds.contains(id)) {
+              qualities.add(quality);
+              seenIds.add(id);
+            }
+          }
+          // Also check nested items (grouped qualities)
+          final nestedItems = item['items'] as List?;
+          if (nestedItems != null) {
+            for (var nested in nestedItems) {
+              if (nested['quality'] != null) {
+                final quality = nested['quality'] as Map<String, dynamic>;
+                final id = quality['id'] as int?;
+                if (id != null && !seenIds.contains(id)) {
+                  qualities.add(quality);
+                  seenIds.add(id);
+                }
+              }
+            }
+          }
+        }
+        setState(() {
+          _availableQualities = qualities;
+          _isLoadingQualities = false;
+        });
+      }
+    } catch (e) {
+      setState(() => _isLoadingQualities = false);
+    }
+  }
+
+  Future<void> _loadEpisodesForSeason(int seasonNumber) async {
+    if (_selectedItem == null) return;
+
+    setState(() => _isLoadingEpisodes = true);
+
+    try {
+      final seriesId = _selectedItem!['id'] as int;
+      final allEpisodes = await widget.sonarrService.getEpisodesBySeriesId(seriesId);
+      
+      final seasonEpisodes = allEpisodes
+          .where((ep) => ep['seasonNumber'] == seasonNumber)
+          .toList();
+      
+      setState(() {
+        _availableEpisodes = seasonEpisodes;
+        _isLoadingEpisodes = false;
+      });
+    } catch (e) {
+      setState(() => _isLoadingEpisodes = false);
+    }
+  }
+
+  Future<void> _searchItems(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+      return;
+    }
+
+    setState(() => _isSearching = true);
+
+    try {
+      final results = widget.source == 'sonarr'
+          ? await widget.sonarrService.searchSeries(query)
+          : await widget.radarrService.searchMovies(query);
+      
+      setState(() {
+        _searchResults = results;
+        _isSearching = false;
+      });
+    } catch (e) {
+      setState(() => _isSearching = false);
+    }
+  }
+
+  void _selectItem(Map<String, dynamic> item) {
+    setState(() {
+      _selectedItem = item;
+      _searchResults = [];
+      
+      // Reset season/episode selection when changing series
+      if (widget.source == 'sonarr') {
+        _selectedSeasonNumber = null;
+        _selectedEpisodeIds.clear();
+      }
+    });
+  }
+
+  void _applyChanges() {
+    _editedCandidate[widget.source == 'sonarr' ? 'series' : 'movie'] =
+        _selectedItem;
+    
+    if (widget.source == 'sonarr') {
+      _editedCandidate['seasonNumber'] = _selectedSeasonNumber;
+      
+      // Build episodes list from selected IDs
+      _editedCandidate['episodes'] = _availableEpisodes
+          .where((e) => _selectedEpisodeIds.contains(e['id']))
+          .toList();
+    }
+    
+    if (_selectedQuality != null) {
+      _editedCandidate['quality'] = {
+        'quality': _selectedQuality,
+      };
+    }
+    
+    _editedCandidate['releaseGroup'] = _releaseGroup;
+    
+    _editedCandidate['languages'] = _selectedLanguages
+        .map((name) => {'name': name})
+        .toList();
+    
+    Navigator.pop(context, _editedCandidate);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit Import Match'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // File name
+              Text(
+                _editedCandidate['relativePath'] ?? 'Unknown',
+                style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+              ),
+              const SizedBox(height: 16),
+              
+              // Series/Movie search
+              Text(
+                widget.source == 'sonarr' ? 'Series' : 'Movie',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                decoration: InputDecoration(
+                  hintText: 'Search ${widget.source == 'sonarr' ? 'series' : 'movie'}...',
+                  prefixIcon: const Icon(Icons.search),
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                ),
+                onChanged: (value) {
+                  _searchItems(value);
+                },
+              ),
+              
+              // Search results
+              if (_isSearching)
+                const Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              if (_searchResults.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  constraints: const BoxConstraints(maxHeight: 200),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _searchResults.length,
+                    itemBuilder: (context, index) {
+                      final item = _searchResults[index];
+                      final title = item['title'] ?? 'Unknown';
+                      final year = item['year']?.toString() ?? '';
+                      return ListTile(
+                        dense: true,
+                        title: Text(title, style: const TextStyle(fontSize: 13)),
+                        subtitle: year.isNotEmpty ? Text(year, style: const TextStyle(fontSize: 11)) : null,
+                        onTap: () => _selectItem(item),
+                      );
+                    },
+                  ),
+                ),
+              
+              // Selected series/movie
+              if (_selectedItem != null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        widget.source == 'sonarr' ? Icons.tv : Icons.movie,
+                        size: 16,
+                        color: Colors.blue[700],
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _selectedItem!['title'] ?? 'Unknown',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              
+              // Season selector (TV only)
+              if (widget.source == 'sonarr' && _selectedItem != null) ...[
+                const SizedBox(height: 16),
+                const Text('Season', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  initialValue: _selectedSeasonNumber,
+                  hint: const Text('Select season'),
+                  items: (_selectedItem!['seasons'] as List?)
+                      ?.map((season) => DropdownMenuItem<int>(
+                            value: season['seasonNumber'] as int,
+                            child: Text('Season ${season['seasonNumber']}'),
+                          ))
+                      .toList() ??
+                      [],
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedSeasonNumber = value;
+                      _selectedEpisodeIds.clear();
+                      _availableEpisodes = [];
+                    });
+                    if (value != null) {
+                      _loadEpisodesForSeason(value);
+                    }
+                  },
+                ),
+              ],
+              
+              // Episode selector (TV only)
+              if (widget.source == 'sonarr' &&
+                  _selectedItem != null &&
+                  _selectedSeasonNumber != null) ...[
+                const SizedBox(height: 16),
+                const Text('Episodes', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                if (_isLoadingEpisodes)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                else
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 200),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: _availableEpisodes.isEmpty
+                        ? const Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: Text('No episodes available'),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: _availableEpisodes.length,
+                            itemBuilder: (context, index) {
+                              final episode = _availableEpisodes[index];
+                              final episodeId = episode['id'] as int;
+                              final episodeNumber = episode['episodeNumber'];
+                              final title = episode['title'] ?? 'TBA';
+
+                              return CheckboxListTile(
+                                dense: true,
+                                title: Text(
+                                  'E$episodeNumber: $title',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                value: _selectedEpisodeIds.contains(episodeId),
+                                onChanged: (value) {
+                                  setState(() {
+                                    if (value == true) {
+                                      _selectedEpisodeIds.add(episodeId);
+                                    } else {
+                                      _selectedEpisodeIds.remove(episodeId);
+                                    }
+                                  });
+                                },
+                              );
+                            },
+                          ),
+                  ),
+              ],
+              
+              // Quality selector
+              const SizedBox(height: 16),
+              const Text('Quality', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              if (_isLoadingQualities)
+                const Center(child: CircularProgressIndicator())
+              else
+                DropdownButtonFormField<int>(
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  initialValue: _selectedQuality?['id'] as int?,
+                  hint: const Text('Select quality'),
+                  items: _availableQualities
+                      .map((quality) => DropdownMenuItem<int>(
+                            value: quality['id'] as int,
+                            child: Text(quality['name'] ?? 'Unknown'),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedQuality = _availableQualities.firstWhere(
+                        (q) => q['id'] == value,
+                        orElse: () => {},
+                      );
+                    });
+                  },
+                ),
+              
+              // Release group
+              const SizedBox(height: 16),
+              const Text('Release Group', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              TextField(
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                  hintText: 'Enter release group',
+                ),
+                controller: TextEditingController(text: _releaseGroup)
+                  ..selection = TextSelection.fromPosition(
+                    TextPosition(offset: _releaseGroup.length),
+                  ),
+                onChanged: (value) => _releaseGroup = value,
+              ),
+              
+              // Languages
+              const SizedBox(height: 16),
+              const Text('Languages', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: ['English', 'Japanese', 'Other'].map((lang) {
+                  return FilterChip(
+                    label: Text(lang),
+                    selected: _selectedLanguages.contains(lang),
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _selectedLanguages.add(lang);
+                        } else {
+                          _selectedLanguages.remove(lang);
+                        }
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _applyChanges,
+          child: const Text('Apply'),
+        ),
+      ],
+    );
   }
 }
