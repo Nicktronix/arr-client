@@ -52,7 +52,11 @@ class ApiClient {
   }
 
   /// Make a POST request to the API
-  Future<dynamic> post(String endpoint, Map<String, dynamic> data, {Duration? timeout}) async {
+  Future<dynamic> post(
+    String endpoint,
+    Map<String, dynamic> data, {
+    Duration? timeout,
+  }) async {
     final uri = Uri.parse('$baseUrl/api/v3$endpoint');
 
     try {

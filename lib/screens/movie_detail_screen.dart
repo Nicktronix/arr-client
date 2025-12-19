@@ -207,9 +207,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       await _radarr.deleteMovieFile(movieFile['id']);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Movie file deleted')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Movie file deleted')));
         // Reload movie details
         _loadMovieDetails();
       }
@@ -356,10 +356,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                     children: [
                       Icon(Icons.delete, color: Colors.red),
                       SizedBox(width: 8),
-                      Text(
-                        'Delete File',
-                        style: TextStyle(color: Colors.red),
-                      ),
+                      Text('Delete File', style: TextStyle(color: Colors.red)),
                     ],
                   ),
                 ),
@@ -788,8 +785,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       Icons.star,
                       'CF Score',
                       '$customFormatScore',
-                      valueColor:
-                          customFormatScore >= 0 ? Colors.green : Colors.red,
+                      valueColor: customFormatScore >= 0
+                          ? Colors.green
+                          : Colors.red,
                     ),
                   ],
                   // Media Info
@@ -940,10 +938,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                   textAlign: TextAlign.right,
                 ),
               ),
-              if (trailing != null) ...[
-                const SizedBox(width: 8),
-                trailing,
-              ],
+              if (trailing != null) ...[const SizedBox(width: 8), trailing],
             ],
           ),
         ),

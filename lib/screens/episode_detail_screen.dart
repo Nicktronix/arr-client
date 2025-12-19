@@ -253,9 +253,9 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
       Navigator.pop(context); // Close loading dialog
 
       if (releases.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No releases found')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('No releases found')));
         return;
       }
 
@@ -442,7 +442,8 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
     final int? runtime = _episode!['runtime'];
     final bool monitored = _episode!['monitored'] ?? false;
     final int? absoluteEpisodeNumber = _episode!['absoluteEpisodeNumber'];
-    final bool qualityCutoffNotMet = _episodeFile?['qualityCutoffNotMet'] ?? false;
+    final bool qualityCutoffNotMet =
+        _episodeFile?['qualityCutoffNotMet'] ?? false;
 
     DateTime? airDate;
     if (airDateUtc != null) {
@@ -501,10 +502,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
                   monitored ? Colors.blue : Colors.grey,
                 ),
                 if (hasFile && qualityCutoffNotMet)
-                  _buildStatusChip(
-                    'Quality Cutoff Not Met',
-                    Colors.orange,
-                  ),
+                  _buildStatusChip('Quality Cutoff Not Met', Colors.orange),
               ],
             ),
             const SizedBox(height: 16),
@@ -791,10 +789,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
                   textAlign: TextAlign.right,
                 ),
               ),
-              if (trailing != null) ...[
-                const SizedBox(width: 8),
-                trailing,
-              ],
+              if (trailing != null) ...[const SizedBox(width: 8), trailing],
             ],
           ),
         ),
