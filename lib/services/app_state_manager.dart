@@ -152,12 +152,12 @@ class AppStateManager extends ChangeNotifier {
     final id = getActiveSonarrId();
     if (id == null) return null;
     final metadata = _instanceManager.getSonarrInstancesMetadata();
-    try {
-      final instance = metadata.firstWhere((m) => m['id'] == id);
-      return instance['name'] as String?;
-    } catch (e) {
-      return null;
+    for (final instance in metadata) {
+      if (instance['id'] == id) {
+        return instance['name'] as String?;
+      }
     }
+    return null;
   }
 
   /// Get active Radarr instance name (fast, from SharedPreferences metadata)
@@ -165,12 +165,12 @@ class AppStateManager extends ChangeNotifier {
     final id = getActiveRadarrId();
     if (id == null) return null;
     final metadata = _instanceManager.getRadarrInstancesMetadata();
-    try {
-      final instance = metadata.firstWhere((m) => m['id'] == id);
-      return instance['name'] as String?;
-    } catch (e) {
-      return null;
+    for (final instance in metadata) {
+      if (instance['id'] == id) {
+        return instance['name'] as String?;
+      }
     }
+    return null;
   }
 
   /// Manually trigger listeners (use when active ID changed but full instance not loaded yet)

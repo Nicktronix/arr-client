@@ -3,6 +3,7 @@ import '../services/sonarr_service.dart';
 import '../services/app_state_manager.dart';
 import '../config/app_config.dart';
 import 'release_search_screen.dart';
+import 'episode_detail_screen.dart';
 import '../utils/error_formatter.dart';
 
 class SeasonDetailScreen extends StatefulWidget {
@@ -179,6 +180,7 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
 
   Widget _buildEpisodeCard(Map<String, dynamic> episode) {
     final int episodeNumber = episode['episodeNumber'] ?? 0;
+    final int episodeId = episode['id'] ?? 0;
     final String title = episode['title'] ?? 'TBA';
     final String? overview = episode['overview'];
     final String? airDateUtc = episode['airDateUtc'];
@@ -199,129 +201,148 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Episode number badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: hasFile
-                        ? Colors.green
-                        : hasAired
-                        ? Colors.red
-                        : Colors.grey,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    'E$episodeNumber',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => EpisodeDetailScreen(
+                seriesId: widget.seriesId,
+                episodeId: episodeId,
+                seriesTitle: widget.seriesTitle,
+                seasonNumber: widget.seasonNumber,
+                episodeNumber: episodeNumber,
+              ),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Episode number badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: hasFile
+                          ? Colors.green
+                          : hasAired
+                          ? Colors.red
+                          : Colors.grey,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'E$episodeNumber',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          if (airDate != null) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            if (airDate != null) ...[
+                              Icon(
+                                isUpcoming
+                                    ? Icons.schedule
+                                    : Icons.calendar_today,
+                                size: 14,
+                                color: Colors.grey[600],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _formatDate(airDate),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ] else ...[
+                              Text(
+                                'TBA',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                            const SizedBox(width: 12),
                             Icon(
-                              isUpcoming
-                                  ? Icons.schedule
-                                  : Icons.calendar_today,
+                              hasFile ? Icons.check_circle : Icons.download,
                               size: 14,
-                              color: Colors.grey[600],
+                              color: hasFile ? Colors.green : Colors.grey,
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              _formatDate(airDate),
+                              hasFile ? 'Downloaded' : 'Missing',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ] else ...[
-                            Text(
-                              'TBA',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey[600],
+                                color: hasFile
+                                    ? Colors.green
+                                    : Colors.grey[600],
                               ),
                             ),
                           ],
-                          const SizedBox(width: 12),
-                          Icon(
-                            hasFile ? Icons.check_circle : Icons.download,
-                            size: 14,
-                            color: hasFile ? Colors.green : Colors.grey,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            hasFile ? 'Downloaded' : 'Missing',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: hasFile ? Colors.green : Colors.grey[600],
-                            ),
-                          ),
-                        ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Icon(
+                        monitored ? Icons.visibility : Icons.visibility_off,
+                        size: 18,
+                        color: monitored ? Colors.green : Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.person, size: 20),
+                        onPressed: () => _showInteractiveSearch(episode),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        tooltip: 'Search for releases',
                       ),
                     ],
                   ),
-                ),
-                Row(
-                  children: [
-                    Icon(
-                      monitored ? Icons.visibility : Icons.visibility_off,
-                      size: 18,
-                      color: monitored ? Colors.green : Colors.grey,
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.person, size: 20),
-                      onPressed: () => _showInteractiveSearch(episode),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      tooltip: 'Search for releases',
-                    ),
-                  ],
+                ],
+              ),
+              if (overview != null && overview.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  overview,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[700],
+                    height: 1.4,
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
-            ),
-            if (overview != null && overview.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                overview,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey[700],
-                  height: 1.4,
-                ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
             ],
-          ],
+          ),
         ),
       ),
     );

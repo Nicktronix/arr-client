@@ -66,6 +66,9 @@ class SonarrService {
 
   /// Get series by ID
   Future<Map<String, dynamic>> getSeriesById(int id) async {
+    if (id <= 0) {
+      throw ArgumentError('Invalid series ID: $id');
+    }
     final client = await _api;
     return await client.get('/series/$id');
   }
@@ -114,6 +117,9 @@ class SonarrService {
 
   /// Delete series
   Future<void> deleteSeries(int id, {bool deleteFiles = false}) async {
+    if (id <= 0) {
+      throw ArgumentError('Invalid series ID: $id');
+    }
     final client = await _api;
     await client.delete('/series/$id?deleteFiles=$deleteFiles');
   }
@@ -137,6 +143,49 @@ class SonarrService {
   Future<List<dynamic>> getEpisodeFilesBySeriesId(int seriesId) async {
     final client = await _api;
     return await client.get('/episodeFile?seriesId=$seriesId');
+  }
+
+  /// Update an episode (e.g., toggle monitoring)
+  /// Sonarr v3 requires sending the full episode object, not partial updates
+  Future<Map<String, dynamic>> updateEpisode(
+    int episodeId,
+    Map<String, dynamic> updates,
+  ) async {
+    final client = await _api;
+
+    // Fetch current episode data
+    final episodes = await client.get(
+      '/episode?seriesId=${updates['seriesId']}',
+    );
+    final episode = (episodes as List).firstWhere(
+      (ep) => ep['id'] == episodeId,
+      orElse: () => throw ApiException('Episode not found'),
+    );
+
+    // Merge updates into full episode object
+    final updatedEpisode = Map<String, dynamic>.from(episode);
+    updatedEpisode.addAll(updates);
+
+    // Send full object to API
+    return await client.put('/episode/$episodeId', updatedEpisode);
+  }
+
+  /// Search for a specific episode
+  Future<void> searchEpisode(int episodeId) async {
+    final client = await _api;
+    await client.post('/command', {
+      'name': 'EpisodeSearch',
+      'episodeIds': [episodeId],
+    });
+  }
+
+  /// Delete an episode file
+  Future<void> deleteEpisodeFile(int episodeFileId) async {
+    if (episodeFileId <= 0) {
+      throw ArgumentError('Invalid episode file ID: $episodeFileId');
+    }
+    final client = await _api;
+    await client.delete('/episodeFile/$episodeFileId');
   }
 
   /// Get quality profiles
@@ -164,9 +213,13 @@ class SonarrService {
   }
 
   /// Search for releases for a specific episode (interactive search)
+  /// Uses extended 60s timeout as release searches can be slow
   Future<List<dynamic>> searchEpisodeReleases(int episodeId) async {
     final client = await _api;
-    return await client.get('/release?episodeId=$episodeId');
+    return await client.get(
+      '/release?episodeId=$episodeId',
+      timeout: const Duration(seconds: 60),
+    );
   }
 
   /// Download a specific release

@@ -2,7 +2,6 @@
 
 [![Flutter CI](https://github.com/Nicktronix/arr-client/actions/workflows/ci.yml/badge.svg)](https://github.com/Nicktronix/arr-client/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/Nicktronix/arr-client/branch/main/graph/badge.svg)](https://codecov.io/gh/Nicktronix/arr-client)
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FNicktronix%2Farr-client.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FNicktronix%2Farr-client?ref=badge_shield)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Flutter](https://img.shields.io/badge/Flutter-3.38.5-02569B?logo=flutter)](https://flutter.dev)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS-brightgreen)]()
@@ -13,8 +12,8 @@ A mobile client for [Sonarr](https://sonarr.tv/) and [Radarr](https://radarr.vid
 
 ## ✨ Features
 
-- 📺 **Sonarr**: Browse, search, and add TV series • Manage episodes and seasons • Interactive release search
-- 🎬 **Radarr**: Browse, search, and add movies • View details and quality info • Manual movie searches
+- 📺 **Sonarr**: Browse, search, and add TV series • Episode detail view with comprehensive file info • Toggle monitoring • Delete episode files • Interactive release search
+- 🎬 **Radarr**: Browse, search, and add movies • Enhanced movie details with custom formats • Toggle monitoring • Delete movie files • Manual movie searches
 - 📥 **Downloads**: Unified queue for both services • Real-time progress tracking • Detailed release browser
 - 🔄 **Multi-Instance**: Manage multiple Sonarr/Radarr servers • Easy switching • Secure credential storage
 - 🔒 **Security**: Biometric authentication • Encrypted backups • Platform keychain/keystore integration

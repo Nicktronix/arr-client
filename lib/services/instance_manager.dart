@@ -89,27 +89,41 @@ class InstanceManager {
   }
 
   // Sonarr Instances
-  Future<List<ServiceInstance>> getSonarrInstances() async {
-    final jsonString = _preferences.getString(_sonarrInstancesKey);
+  /// Generic method to get instances with credentials
+  Future<List<ServiceInstance>> _getInstances(String serviceType) async {
+    final key = serviceType == 'sonarr'
+        ? _sonarrInstancesKey
+        : _radarrInstancesKey;
+    final jsonString = _preferences.getString(key);
     if (jsonString == null) return [];
 
     final List<dynamic> jsonList = jsonDecode(jsonString);
     final List<ServiceInstance> instances = [];
 
     for (var json in jsonList) {
-      final instance = await _loadInstanceCredentials(json, 'sonarr');
+      final instance = await _loadInstanceCredentials(json, serviceType);
       instances.add(instance);
     }
 
     return instances;
   }
 
-  /// Fast method to get instance metadata only (no credentials from secure storage)
-  /// Use this for listing instances in settings where credentials aren't needed
-  List<Map<String, dynamic>> getSonarrInstancesMetadata() {
-    final jsonString = _preferences.getString(_sonarrInstancesKey);
+  /// Generic method to get instance metadata only (fast, no secure storage access)
+  List<Map<String, dynamic>> _getInstancesMetadata(String serviceType) {
+    final key = serviceType == 'sonarr'
+        ? _sonarrInstancesKey
+        : _radarrInstancesKey;
+    final jsonString = _preferences.getString(key);
     if (jsonString == null) return [];
     return List<Map<String, dynamic>>.from(jsonDecode(jsonString));
+  }
+
+  Future<List<ServiceInstance>> getSonarrInstances() async {
+    return _getInstances('sonarr');
+  }
+
+  List<Map<String, dynamic>> getSonarrInstancesMetadata() {
+    return _getInstancesMetadata('sonarr');
   }
 
   Future<void> saveSonarrInstances(List<ServiceInstance> instances) async {
@@ -166,26 +180,11 @@ class InstanceManager {
 
   // Radarr Instances
   Future<List<ServiceInstance>> getRadarrInstances() async {
-    final jsonString = _preferences.getString(_radarrInstancesKey);
-    if (jsonString == null) return [];
-
-    final List<dynamic> jsonList = jsonDecode(jsonString);
-    final List<ServiceInstance> instances = [];
-
-    for (var json in jsonList) {
-      final instance = await _loadInstanceCredentials(json, 'radarr');
-      instances.add(instance);
-    }
-
-    return instances;
+    return _getInstances('radarr');
   }
 
-  /// Fast method to get instance metadata only (no credentials from secure storage)
-  /// Use this for listing instances in settings where credentials aren't needed
   List<Map<String, dynamic>> getRadarrInstancesMetadata() {
-    final jsonString = _preferences.getString(_radarrInstancesKey);
-    if (jsonString == null) return [];
-    return List<Map<String, dynamic>>.from(jsonDecode(jsonString));
+    return _getInstancesMetadata('radarr');
   }
 
   Future<void> saveRadarrInstances(List<ServiceInstance> instances) async {
