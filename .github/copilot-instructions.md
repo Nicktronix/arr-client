@@ -178,7 +178,7 @@ class _ScreenNameState extends State<ScreenName> with CachedDataLoader {
     if (_data.isEmpty) {
       return Center(child: Text('No data'));
     }
-    
+
     return RefreshIndicator(
       onRefresh: () => loadData(forceRefresh: true),
       child: ListView.builder(...),
@@ -224,7 +224,7 @@ onChanged: (value) async {
 ### Manual Three-State Pattern (For Detail/Search Screens)
 **Detail and search screens always use manual three-state pattern:**
 - Episode detail (`episode_detail_screen.dart`)
-- Movie detail (`movie_detail_screen.dart`) 
+- Movie detail (`movie_detail_screen.dart`)
 - Series detail (`series_detail_screen.dart`)
 - Search screens (`series_search_screen.dart`)
 
@@ -242,13 +242,13 @@ class _ScreenNameState extends State<ScreenName> {
   bool _isLoading = true;
   String? _error;
   List<dynamic> _data = [];
-  
+
   @override
   void initState() {
     super.initState();
     _loadData();
   }
-  
+
   Widget _buildBody() {
     // State 1: Loading
     if (_isLoading) {
@@ -263,7 +263,7 @@ class _ScreenNameState extends State<ScreenName> {
         ),
       );
     }
-    
+
     // State 2: Error
     if (_error != null) {
       return Center(
@@ -284,7 +284,7 @@ class _ScreenNameState extends State<ScreenName> {
         ),
       );
     }
-    
+
     // State 3: Success with pull-to-refresh
     return RefreshIndicator(
       onRefresh: _loadData,
@@ -396,7 +396,7 @@ Future<void> _showReleaseDetails(Map<String, dynamic> release) async {
   final List<dynamic>? languages = release['languages'];
   final List<dynamic>? customFormats = release['customFormats'];
   final String? publishDate = release['publishDate'];
-  
+
   // Show confirmation dialog
   final confirmed = await showDialog<bool>(
     context: context,
@@ -409,7 +409,7 @@ Future<void> _showReleaseDetails(Map<String, dynamic> release) async {
             // Title
             Text(title, style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 16),
-            
+
             // Common fields (shown for both series and movies)
             _buildDetailRow('Quality', quality),
             if (releaseGroup != null && releaseGroup.isNotEmpty)
@@ -425,7 +425,7 @@ Future<void> _showReleaseDetails(Map<String, dynamic> release) async {
             _buildDetailRow('Age', '$age days'),
             if (publishDate != null)
               _buildDetailRow('Published', _formatPublishDate(publishDate)),
-            
+
             // Custom formats section with chips
             if (customFormats != null && customFormats.isNotEmpty) ...[
               const SizedBox(height: 8),
@@ -446,14 +446,14 @@ Future<void> _showReleaseDetails(Map<String, dynamic> release) async {
               ),
             ],
             _buildDetailRow('CF Score', '$cfScore'),
-            
+
             // Type-specific fields
             if (!_isMovie && release['mappedEpisodeInfo'] != null) ...[
               // Episode list for series
             ],
             if (_isMovie && edition != null && edition.isNotEmpty)
               _buildDetailRow('Edition', edition),
-            
+
             // Rejections section if present
             if (isRejected) ...[
               // Show rejection reasons
@@ -473,7 +473,7 @@ Future<void> _showReleaseDetails(Map<String, dynamic> release) async {
 String _formatPublishDate(String publishDate) {
   final date = DateTime.parse(publishDate);
   final diff = DateTime.now().difference(date);
-  
+
   if (diff.inDays > 365) return '${(diff.inDays / 365).floor()}y ago';
   if (diff.inDays > 30) return '${(diff.inDays / 30).floor()}mo ago';
   if (diff.inDays > 0) return '${diff.inDays}d ago';
@@ -494,6 +494,161 @@ String _formatPublishDate(String publishDate) {
 - Relative time formatting for publish dates (e.g., "3mo ago", "79d ago")
 - All optional fields check for null/empty before rendering
 - Consistent field ordering ensures predictable UX across types
+
+### Queue Manual Import Pattern
+**Queue items with warning/error status can be tapped to navigate to manual import screen:**
+
+```dart
+// In queue card builder
+final bool canManualImport =
+    trackedDownloadStatus == 'warning' || trackedDownloadStatus == 'error';
+
+return Card(
+  child: InkWell(
+    onTap: canManualImport ? () => _navigateToManualImport(item) : null,
+    child: Padding(...),  // Card content with warning banner if needed
+  ),
+);
+
+// Warning banner for status messages
+if (trackedDownloadStatus == 'warning' && statusMessages != null) ...[
+  Container(
+    decoration: BoxDecoration(
+      color: Colors.amber.withValues(alpha: 0.1),
+      border: Border.all(color: Colors.amber),
+    ),
+    child: Row(
+      children: [
+        Icon(Icons.warning, color: Colors.amber[800]),
+        Expanded(child: /* Display messages */),
+        if (canManualImport) Icon(Icons.touch_app),  // Hint for tappable
+      ],
+    ),
+  ),
+]
+```
+
+**Manual Import Screen Pattern** ([manual_import_screen.dart](lib/screens/manual_import_screen.dart)):
+- **Dedicated full-screen StatefulWidget** (not dialog)
+- **Three-state pattern**: loading → error/empty → success
+- **Context banner**: Shows queue item title, selection count, and help text
+- **Alphabetical sorting**: Files sorted by relative path (case-insensitive)
+- **Pre-selection logic**: All files selected by default (user decides)
+- **Select all toggle**: Checkbox in bottom bar - "Select All" / "All Selected"
+- **Rejections as warnings**: Can be overridden (shown with info icon, not blockers)
+- **CheckboxListTile**: All files selectable, even those with rejections
+- **Tappable cards**: Entire card tappable to open edit dialog (future feature)
+- **Edit button**: Shows for unmatched files or files with rejections
+- **Match indicators**: Visual colors for matched/unmatched/selected/rejected
+- **Bottom action bar**: Toggle all selection + Import button
+- **Service methods**: `getManualImport()` + `performManualImport()`
+- **Returns true on success** to trigger queue refresh
+- **Reusable**: Can be navigated to from queue, activity, etc.
+- **TODO**: Implement editing (series/movie picker, episode selector, quality override)
+
+```dart
+class ManualImportScreen extends StatefulWidget {
+  final String source;  // 'sonarr' or 'radarr'
+  final String downloadId;
+  final String title;  // Queue item title for context
+
+  @override
+  State<ManualImportScreen> createState() => _ManualImportScreenState();
+}
+
+class _ManualImportScreenState extends State<ManualImportScreen> {
+  List<dynamic> _importCandidates = [];
+  final Set<int> _selectedIndices = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadImportCandidates();
+  }
+
+  Future<void> _loadImportCandidates() async {
+    final candidates = widget.source == 'sonarr'
+        ? await _sonarr.getManualImport(downloadId: widget.downloadId)
+        : await _radarr.getManualImport(downloadId: widget.downloadId);
+
+    // Sort candidates alphabetically by relative path
+    candidates.sort((a, b) {
+      final pathA = (a['relativePath'] ?? '').toString().toLowerCase();
+      final pathB = (b['relativePath'] ?? '').toString().toLowerCase();
+      return pathA.compareTo(pathB);
+    });
+
+    // Pre-select all files - user decides what to import
+    for (var i = 0; i < candidates.length; i++) {
+      _selectedIndices.add(i);
+    }
+  }
+
+  Future<void> _performImport() async {
+    ScaffoldMessenger.of(context).showSnackBar(/* Progress indicator */);
+
+    final imports = _selectedIndices.map((i) => _importCandidates[i]).toList();
+    if (widget.source == 'sonarr') {
+      await _sonarr.performManualImport(imports);
+    } else {
+      await _radarr.performManualImport(imports);
+    }
+
+    Navigator.pop(context, true);  // Return true to refresh queue
+  }
+
+  Widget _buildImportCandidate(candidate, index, isSelected) {
+    final hasRejections = (candidate['rejections'] as List?)?.isNotEmpty ?? false;
+    final hasMatch = candidate['series'] != null || candidate['movie'] != null;
+
+    return Card(
+      color: hasRejections
+          ? Colors.amber.withValues(alpha: 0.1)
+          : !hasMatch
+              ? Colors.orange.withValues(alpha: 0.1)
+              : isSelected
+                  ? Colors.blue.withValues(alpha: 0.05)
+                  : null,
+      child: InkWell(
+        onTap: () => _showEditDialog(candidate, index),
+        child: CheckboxListTile(
+          value: isSelected,
+          onChanged: (value) { /* Toggle selection - always enabled */ },
+          title: Text(candidate['relativePath']),
+          subtitle: Column(
+            children: [
+              // Series/movie match display
+              if (hasMatch) ...[/* Matched indicator */],
+              if (!hasMatch) ...[/* Unmatched warning */],
+              // Quality, size, languages, CF score
+              if (hasRejections) ...[
+                // Info box: "Import warnings (can be overridden):"
+                // Shows rejection reasons as informational text
+              ],
+              // Edit button at bottom for unmatched or rejected files
+              if (!hasMatch || hasRejections) ...[/* Edit hint button */],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+```
+
+**Key Features**:
+- Dedicated screen (not dialog) for complex workflow
+- Context banner with title, selection count, and help text
+- Alphabetical file sorting by relative path
+- All files pre-selected by default (user decides what to import)
+- Select all toggle checkbox in bottom bar
+- All checkboxes always enabled (rejections are warnings, not blockers)
+- Visual distinction: amber for rejections, blue for selected, orange for unmatched
+- Tappable cards open edit dialog (placeholder for now)
+- Edit button shown for unmatched or rejected files
+- Progress feedback during import operation
+- Reusable from multiple app locations
+- Future: Will support editing series/movie selection, quality, episodes
 
 ## State Management
 
@@ -562,7 +717,7 @@ try {
 } catch (e) {
   // For UI display
   setState(() => _error = ErrorFormatter.format(e));
-  
+
   // For SnackBar
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: Text(ErrorFormatter.format(e))),
@@ -703,13 +858,13 @@ Map<String, String> get _headers {
     'X-Api-Key': apiKey,  // Always required
     'Content-Type': 'application/json',
   };
-  
+
   // Optional HTTP Basic Auth for proxy-protected instances
   if (basicAuthUsername != null && basicAuthPassword != null) {
     final credentials = base64Encode(utf8.encode('$basicAuthUsername:$basicAuthPassword'));
     headers['Authorization'] = 'Basic $credentials';
   }
-  
+
   return headers;
 }
 ```

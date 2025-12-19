@@ -258,4 +258,21 @@ class SonarrService {
     final client = await _api;
     await client.post('/indexer/testall', {});
   }
+
+  /// Get manual import candidates for a download
+  Future<List<dynamic>> getManualImport({
+    required String downloadId,
+    bool filterExistingFiles = false,
+  }) async {
+    final client = await _api;
+    return await client.get(
+      '/manualimport?downloadId=$downloadId&filterExistingFiles=$filterExistingFiles',
+    );
+  }
+
+  /// Import selected manual import items
+  Future<void> performManualImport(List<Map<String, dynamic>> imports) async {
+    final client = await _api;
+    await client.post('/command', {'name': 'ManualImport', 'files': imports});
+  }
 }
