@@ -231,6 +231,7 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
     final String status = item['status'] ?? 'unknown';
     final String? trackedDownloadStatus = item['trackedDownloadStatus'];
     final List<dynamic>? statusMessages = item['statusMessages'];
+    final String? errorMessage = item['errorMessage'];
     final double size = (item['size'] ?? 0).toDouble();
     final double sizeleft = (item['sizeleft'] ?? 0).toDouble();
     final String? timeLeft = item['timeleft'];
@@ -328,10 +329,16 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
                   _buildStatusChip(status, trackedDownloadStatus),
                 ],
               ),
-              // Warning messages banner
-              if (trackedDownloadStatus == 'warning' &&
-                  statusMessages != null &&
-                  statusMessages.isNotEmpty) ...[
+              // Warning/error messages banner
+              // Show when either:
+              // 1. trackedDownloadStatus is warning with statusMessages
+              // 2. status is warning with errorMessage (even if trackedDownloadStatus is ok)
+              if ((trackedDownloadStatus == 'warning' &&
+                      statusMessages != null &&
+                      statusMessages.isNotEmpty) ||
+                  (status == 'warning' &&
+                      errorMessage != null &&
+                      errorMessage.isNotEmpty)) ...[
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(8),
@@ -349,19 +356,33 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            for (var msg in statusMessages)
-                              ...((msg['messages'] as List?) ?? []).map(
-                                (m) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 2),
-                                  child: Text(
-                                    m.toString(),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.amber[900],
-                                    ),
+                            // Show errorMessage if present
+                            if (errorMessage != null && errorMessage.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 2),
+                                child: Text(
+                                  errorMessage,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.amber[900],
                                   ),
                                 ),
                               ),
+                            // Show statusMessages if present
+                            if (statusMessages != null && statusMessages.isNotEmpty)
+                              for (var msg in statusMessages)
+                                ...((msg['messages'] as List?) ?? []).map(
+                                  (m) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 2),
+                                    child: Text(
+                                      m.toString(),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.amber[900],
+                                      ),
+                                    ),
+                                  ),
+                                ),
                           ],
                         ),
                       ),
