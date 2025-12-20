@@ -99,6 +99,20 @@ class RadarrService {
     return await client.get('/queue');
   }
 
+  /// Remove item from queue
+  /// removeFromClient: Remove from download client (default true)
+  /// blocklist: Add to blocklist to prevent re-downloading (default false)
+  Future<void> removeQueueItem(
+    int id, {
+    bool removeFromClient = true,
+    bool blocklist = false,
+  }) async {
+    final client = await _api;
+    await client.delete(
+      '/queue/$id?removeFromClient=$removeFromClient&blocklist=$blocklist',
+    );
+  }
+
   /// Add a new movie
   Future<Map<String, dynamic>> addMovie(Map<String, dynamic> movieData) async {
     final client = await _api;

@@ -327,6 +327,14 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
                     ),
                   ),
                   _buildStatusChip(status, trackedDownloadStatus),
+                  // Delete button
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                    onPressed: () => _confirmRemoveQueueItem(item),
+                    tooltip: 'Remove from queue',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
                 ],
               ),
               // Warning/error messages banner
@@ -704,6 +712,105 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
     // Refresh queue if import was successful
     if (result == true && mounted) {
       loadData(forceRefresh: true);
+    }
+  }
+
+  Future<void> _confirmRemoveQueueItem(Map<String, dynamic> item) async {
+    final String title = item['title'] ?? 'Unknown';
+    final String source = item['source'];
+    final int? itemId = item['id'];
+
+    if (itemId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid queue item')),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove from Queue'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Remove "$title" from the queue?'),
+            const SizedBox(height: 16),
+            const Text(
+              'This will remove the download from your download client.',
+              style: TextStyle(fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      // Show loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 16),
+                const Text('Removing from queue...'),
+              ],
+            ),
+            duration: const Duration(seconds: 30),
+          ),
+        );
+      }
+
+      // Remove from appropriate service
+      if (source == 'sonarr') {
+        await _sonarr.removeQueueItem(itemId);
+      } else {
+        await _radarr.removeQueueItem(itemId);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Removed from queue'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Refresh the queue
+        loadData(forceRefresh: true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to remove: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 }
