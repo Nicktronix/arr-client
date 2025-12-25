@@ -371,6 +371,13 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     final bool isRejected = rejections != null && rejections.isNotEmpty;
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
+    // Check for matching issues
+    final bool hasUnknownMatch =
+        !_isMovie &&
+        (release['mappedEpisodeInfo'] == null ||
+            (release['mappedEpisodeInfo'] as List).isEmpty) &&
+        release['fullSeason'] != true;
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
       color: isRejected
@@ -385,20 +392,44 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (hasUnknownMatch) ...[
+                    const SizedBox(width: 8),
+                    Tooltip(
+                      message: 'May require manual import',
+                      child: Icon(
+                        Icons.help_outline,
+                        size: 18,
+                        color: Colors.orange[700],
+                      ),
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 12,
                 runSpacing: 4,
                 children: [
+                  // Show warning for unknown matches
+                  if (hasUnknownMatch)
+                    _buildInfoChip(
+                      Icons.warning_amber,
+                      'Unknown Match',
+                      Colors.orange,
+                    ),
                   // Show season/episode info for series releases
                   if (!_isMovie) ...[
                     if (release['mappedEpisodeInfo'] != null &&
@@ -512,7 +543,25 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     final List<dynamic>? languages = release['languages'];
     final List<dynamic>? customFormats = release['customFormats'];
 
-    final confirmed = await showDialog<bool>(
+    // Check if release has series/movie matching issues
+    final bool hasUnknownSeries =
+        !_isMovie &&
+        (release['mappedEpisodeInfo'] == null ||
+            (release['mappedEpisodeInfo'] as List).isEmpty) &&
+        release['fullSeason'] != true;
+    final bool hasUnknownMovie = _isMovie && release['movie'] == null;
+    final bool hasMatchingIssues =
+        hasUnknownSeries ||
+        hasUnknownMovie ||
+        (rejections?.any((r) {
+              final reason = r is Map ? (r['reason'] ?? '') : r.toString();
+              return reason.toLowerCase().contains('unknown') ||
+                  reason.toLowerCase().contains('series') ||
+                  reason.toLowerCase().contains('movie');
+            }) ??
+            false);
+
+    final confirmed = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Download Release'),
@@ -523,6 +572,53 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
             children: [
               Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 16),
+              // Warning for matching issues
+              if (hasMatchingIssues) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.1),
+                    border: Border.all(color: Colors.orange),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.warning_amber,
+                        color: Colors.orange[800],
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              hasUnknownSeries
+                                  ? 'Unknown Series Match'
+                                  : hasUnknownMovie
+                                  ? 'Unknown Movie Match'
+                                  : 'Matching Issues Detected',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange[800],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'This release may require manual import. After downloading, '
+                              'check the Queue screen and use Manual Import if needed.',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               // Common fields (both series and movies)
               _buildDetailRow('Quality', quality),
               if (releaseGroup != null && releaseGroup.isNotEmpty)
@@ -614,19 +710,46 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(context, 'cancel'),
             child: const Text('Cancel'),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Download'),
-          ),
+          if (hasMatchingIssues) ...[
+            // For releases with matching issues, offer to download and go to queue
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(context, 'download_and_queue'),
+              icon: const Icon(Icons.download),
+              label: const Text('Download & Go to Queue'),
+            ),
+          ] else ...[
+            // Normal download for properly matched releases
+            FilledButton(
+              onPressed: () => Navigator.pop(context, 'download'),
+              child: const Text('Download'),
+            ),
+          ],
         ],
       ),
     );
 
-    if (confirmed == true && mounted) {
-      _downloadRelease(release);
+    if (confirmed == 'download' || confirmed == 'download_and_queue') {
+      final success = await _downloadRelease(release);
+
+      // If download succeeded and user wants to go to queue
+      if (success && confirmed == 'download_and_queue' && mounted) {
+        // Navigate to home screen with queue tab
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        // The home screen uses IndexedStack with queue at index 1
+        // We'll need to notify it to switch tabs
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Download added - check Queue screen for manual import if needed',
+            ),
+            duration: Duration(seconds: 5),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     }
   }
 
@@ -671,7 +794,7 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     );
   }
 
-  Future<void> _downloadRelease(Map<String, dynamic> release) async {
+  Future<bool> _downloadRelease(Map<String, dynamic> release) async {
     try {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -714,9 +837,8 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        // Go back
-        Navigator.pop(context, true); // Return true to indicate refresh needed
       }
+      return true;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -727,6 +849,7 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
           ),
         );
       }
+      return false;
     }
   }
 }
