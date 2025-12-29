@@ -259,10 +259,12 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
     final double downloadedMB = (size - sizeleft) / 1024 / 1024;
     final double totalMB = size / 1024 / 1024;
 
-    // Check if this item can be manually imported
-    // Manual import available when there are import issues (warning/error status)
+    // Manual import only available when files are actually downloaded
+    // Available for: completed downloads, or downloads with warnings/errors (files present but need manual matching)
     final bool canManualImport =
-        trackedDownloadStatus == 'warning' || trackedDownloadStatus == 'error';
+        status == 'completed' ||
+        trackedDownloadStatus == 'warning' ||
+        trackedDownloadStatus == 'error';
 
     // Get episode info for TV shows
     String? episodeInfo;
@@ -377,7 +379,8 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
                                 ),
                               ),
                             // Show statusMessages if present
-                            if (statusMessages != null && statusMessages.isNotEmpty)
+                            if (statusMessages != null &&
+                                statusMessages.isNotEmpty)
                               for (var msg in statusMessages)
                                 ...((msg['messages'] as List?) ?? []).map(
                                   (m) => Padding(
@@ -692,9 +695,9 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
     final String title = item['title'] ?? 'Unknown';
 
     if (downloadId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No download ID available')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No download ID available')));
       return;
     }
 
@@ -721,9 +724,9 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
     final int? itemId = item['id'];
 
     if (itemId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid queue item')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invalid queue item')));
       return;
     }
 
@@ -750,9 +753,7 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Remove'),
           ),
         ],
