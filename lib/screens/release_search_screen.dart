@@ -370,13 +370,7 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     final List<dynamic>? rejections = release['rejections'];
     final bool isRejected = rejections != null && rejections.isNotEmpty;
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
-    // Check for matching issues
-    final bool hasUnknownMatch =
-        !_isMovie &&
-        (release['mappedEpisodeInfo'] == null ||
-            (release['mappedEpisodeInfo'] as List).isEmpty) &&
-        release['fullSeason'] != true;
+    final bool hasUnknownMatch = _hasUnknownMatch(release);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
@@ -525,6 +519,18 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 
+  bool _hasUnknownMatch(Map<String, dynamic> release) {
+    if (_isMovie) {
+      // For movies, check if mappedMovieId is missing or 0
+      return release['mappedMovieId'] == null || release['mappedMovieId'] == 0;
+    } else {
+      // For series, check if mappedEpisodeInfo is missing or empty (excluding season packs)
+      return (release['mappedEpisodeInfo'] == null ||
+              (release['mappedEpisodeInfo'] as List).isEmpty) &&
+          release['fullSeason'] != true;
+    }
+  }
+
   Future<void> _showReleaseDetails(Map<String, dynamic> release) async {
     final String title = release['title'] ?? 'Unknown';
     final String quality = release['quality']?['quality']?['name'] ?? 'Unknown';
@@ -544,12 +550,8 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     final List<dynamic>? customFormats = release['customFormats'];
 
     // Check if release has series/movie matching issues
-    final bool hasUnknownSeries =
-        !_isMovie &&
-        (release['mappedEpisodeInfo'] == null ||
-            (release['mappedEpisodeInfo'] as List).isEmpty) &&
-        release['fullSeason'] != true;
-    final bool hasUnknownMovie = _isMovie && release['movie'] == null;
+    final bool hasUnknownSeries = !_isMovie && _hasUnknownMatch(release);
+    final bool hasUnknownMovie = _isMovie && _hasUnknownMatch(release);
     final bool hasMatchingIssues =
         hasUnknownSeries ||
         hasUnknownMovie ||
@@ -561,7 +563,7 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
             }) ??
             false);
 
-    final confirmed = await showDialog<String>(
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Download Release'),
@@ -710,46 +712,19 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, 'cancel'),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
-          if (hasMatchingIssues) ...[
-            // For releases with matching issues, offer to download and go to queue
-            FilledButton.icon(
-              onPressed: () => Navigator.pop(context, 'download_and_queue'),
-              icon: const Icon(Icons.download),
-              label: const Text('Download & Go to Queue'),
-            ),
-          ] else ...[
-            // Normal download for properly matched releases
-            FilledButton(
-              onPressed: () => Navigator.pop(context, 'download'),
-              child: const Text('Download'),
-            ),
-          ],
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Download'),
+          ),
         ],
       ),
     );
 
-    if (confirmed == 'download' || confirmed == 'download_and_queue') {
-      final success = await _downloadRelease(release);
-
-      // If download succeeded and user wants to go to queue
-      if (success && confirmed == 'download_and_queue' && mounted) {
-        // Navigate to home screen with queue tab
-        Navigator.of(context).popUntil((route) => route.isFirst);
-        // The home screen uses IndexedStack with queue at index 1
-        // We'll need to notify it to switch tabs
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Download added - check Queue screen for manual import if needed',
-            ),
-            duration: Duration(seconds: 5),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
+    if (confirmed == true && mounted) {
+      await _downloadRelease(release);
     }
   }
 
@@ -794,7 +769,7 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     );
   }
 
-  Future<bool> _downloadRelease(Map<String, dynamic> release) async {
+  Future<void> _downloadRelease(Map<String, dynamic> release) async {
     try {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -838,7 +813,6 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
           ),
         );
       }
-      return true;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -849,7 +823,6 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
           ),
         );
       }
-      return false;
     }
   }
 }
