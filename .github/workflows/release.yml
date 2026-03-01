@@ -78,7 +78,7 @@ jobs:
           mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/arr-client-v${{ steps.version.outputs.tag }}-android.apk
       
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: android-apk
           path: build/app/outputs/flutter-apk/arr-client-*.apk
