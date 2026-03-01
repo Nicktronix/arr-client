@@ -110,7 +110,7 @@ jobs:
           echo "tag=$VERSION" >> $GITHUB_OUTPUT
       
       - name: Download Android APK
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: android-apk
           path: ./artifacts
