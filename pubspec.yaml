@@ -45,7 +45,7 @@ dependencies:
   shared_preferences: ^2.2.2
   
   # Biometric authentication
-  local_auth: ^3.0.0
+  local_auth: ^3.0.1
   
   # Date formatting
   intl: ^0.20.1
