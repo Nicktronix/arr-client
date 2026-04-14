@@ -88,7 +88,7 @@ Feature suggestions are welcome! Please:
 
 Before submitting, ensure:
 
-- ✅ Code follows the project's architecture patterns (see `.github/copilot-instructions.md`)
+- ✅ Code follows the project's architecture patterns (see `CLAUDE.md`)
 - ✅ All tests pass (`flutter test`)
 - ✅ No analyzer warnings (`flutter analyze`)
 - ✅ Code is properly formatted (`dart format .`)
@@ -101,7 +101,7 @@ Before submitting, ensure:
 
 ### Architecture Patterns
 
-This project follows specific architectural patterns. **Please read** [.github/copilot-instructions.md](.github/copilot-instructions.md) for:
+This project follows specific architectural patterns. **Please read** [CLAUDE.md](CLAUDE.md) for:
 
 - Centralized state management pattern
 - CachedDataLoader mixin usage

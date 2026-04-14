@@ -1,164 +1,115 @@
 name: Release Build
 
 on:
-  workflow_run:
-    workflows: ["Flutter CI/CD"]
-    types:
-      - completed
-    branches:
-      - main
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  check-tag:
-    name: Check for New Tag
-    runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    outputs:
-      has_tag: ${{ steps.check.outputs.has_tag }}
-      tag_name: ${{ steps.check.outputs.tag_name }}
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      
-      - name: Check if latest commit has tag
-        id: check
-        run: |
-          # Get the commit SHA from the completed workflow
-          COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
-          
-          # Check if this commit has a version tag
-          TAG=$(git tag --points-at $COMMIT_SHA | grep '^v[0-9]' || echo "")
-          
-          if [ -n "$TAG" ]; then
-            echo "has_tag=true" >> $GITHUB_OUTPUT
-            echo "tag_name=$TAG" >> $GITHUB_OUTPUT
-            echo "Found tag: $TAG"
-          else
-            echo "has_tag=false" >> $GITHUB_OUTPUT
-            echo "No version tag found"
-          fi
-
   build-android:
     name: Build Android APK
     runs-on: ubuntu-latest
-    needs: check-tag
-    if: needs.check-tag.outputs.has_tag == 'true'
-    
+    timeout-minutes: 30
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.check-tag.outputs.tag_name }}
-      
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.38.5'
           channel: 'stable'
           cache: true
-      
+
       - name: Install dependencies
         run: flutter pub get
-      
-      - name: Extract version
-        id: version
+
+      - name: Decode keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_FILE }}" | base64 --decode > /tmp/keystore.jks
+
+      - name: Write key.properties
         run: |
-          TAG=${{ needs.check-tag.outputs.tag_name }}
-          VERSION=${TAG#v}
-          echo "tag=$VERSION" >> $GITHUB_OUTPUT
-      
-      - name: Build Android APK
-        run: flutter build apk --release --build-name=${{ steps.version.outputs.tag }} --build-number=${{ github.run_number }}
-      
+          cat > android/key.properties << EOF
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          storeFile=/tmp/keystore.jks
+          EOF
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Build signed Android APK
+        run: |
+          flutter build apk --release \
+            --build-name=${{ steps.version.outputs.version }} \
+            --build-number=${{ github.run_number }}
+
       - name: Rename APK
         run: |
-          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/arr-client-v${{ steps.version.outputs.tag }}-android.apk
-      
+          mv build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/arr-client-${{ github.ref_name }}-android.apk
+
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: android-apk
           path: build/app/outputs/flutter-apk/arr-client-*.apk
-          retention-days: 90
-
-  # Note: iOS builds not included in CI/CD
-  # Requires Apple Developer account for code signing
-  # iOS users: Build locally with Xcode (see README.md for instructions)
+          retention-days: 1
 
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [check-tag, build-android]
-    if: needs.check-tag.outputs.has_tag == 'true'
+    timeout-minutes: 10
+    needs: build-android
     permissions:
       contents: write
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.check-tag.outputs.tag_name }}
-      
-      - name: Extract version
+
+      - name: Extract version from tag
         id: version
-        run: |
-          TAG=${{ needs.check-tag.outputs.tag_name }}
-          VERSION=${TAG#v}
-          echo "tag=$VERSION" >> $GITHUB_OUTPUT
-      
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
       - name: Download Android APK
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: android-apk
           path: ./artifacts
-      
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.check-tag.outputs.tag_name }}
-          name: Release v${{ steps.version.outputs.tag }}
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           body: |
-            ## Arr Client v${{ steps.version.outputs.tag }}
-            
-            ### 📦 Downloads
-            - **Android**: arr-client-v${{ steps.version.outputs.tag }}-android.apk
-            
-            ### 🚀 Installation Instructions
-            
+            ## Arr Client ${{ github.ref_name }}
+
+            ### Downloads
+            - **Android**: arr-client-${{ github.ref_name }}-android.apk
+
+            ### Installation
+
             **Android**:
-            1. Download the APK file
+            1. Download the APK
             2. Enable "Install from Unknown Sources" in Android Settings
-            3. Open the APK to install
-            
+            3. Install the APK
+
             **iOS** (Build Locally):
-            iOS builds require code signing and are not provided in releases. To build for iOS:
-            
-            1. Clone the repository:
-               ```bash
-               git clone https://github.com/${{ github.repository }}.git
-               cd arr-client
-               git checkout ${{ needs.check-tag.outputs.tag_name }}
-               ```
-            
-            2. Open in Xcode and configure signing:
-               ```bash
-               open ios/Runner.xcworkspace
-               ```
-               - Select your Development Team in Signing & Capabilities
-               - Xcode will automatically create a provisioning profile
-            
-            3. Build and install:
-               ```bash
-               flutter build ios --release
-               ```
-               Then use Xcode to install on your device, or create an IPA for sideloading with AltStore/Sideloadly.
-            
-            ### 📝 Changelog
+            See [README.md](https://github.com/${{ github.repository }}/blob/main/README.md) for iOS build instructions.
+
+            ### Changelog
             See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
-          files: |
-            ./artifacts/*.apk
+          files: ./artifacts/*.apk
           draft: false
           prerelease: false

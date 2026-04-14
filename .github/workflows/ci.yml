@@ -3,30 +3,31 @@ name: Flutter CI/CD
 on:
   push:
     branches: [ main, develop ]
-    tags:
-      - 'v*.*.*'
     paths-ignore:
       - '**/*.md'
-      - '*.md'
       - 'LICENSE'
-      - '.github/FUNDING.yml'
       - '.github/dependabot.yml'
       - '.gitignore'
   pull_request:
     branches: [ main, develop ]
     paths-ignore:
       - '**/*.md'
-      - '*.md'
       - 'LICENSE'
-      - '.github/FUNDING.yml'
       - '.github/dependabot.yml'
       - '.gitignore'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
 
 jobs:
   analyze:
     name: Code Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     
     steps:
       - name: Checkout code
@@ -51,6 +52,7 @@ jobs:
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: analyze
     
     steps:
@@ -71,7 +73,7 @@ jobs:
         run: flutter test --coverage --reporter=expanded
       
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage/lcov.info
           fail_ci_if_error: false
@@ -80,6 +82,7 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: analyze
     
     steps:
@@ -100,43 +103,3 @@ jobs:
         run: flutter pub outdated --show-all
         continue-on-error: true
 
-  # Auto-tag when release branch merges to main
-  auto-tag:
-    name: Auto-Tag Release
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    permissions:
-      contents: write
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Extract version from pubspec.yaml
-        id: version
-        run: |
-          VERSION=$(grep "^version:" pubspec.yaml | sed 's/version://' | sed 's/ //g' | sed 's/+.*//')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Found version: $VERSION"
-      
-      - name: Check if tag exists
-        id: check_tag
-        run: |
-          if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Tag v${{ steps.version.outputs.version }} already exists"
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "Tag v${{ steps.version.outputs.version }} does not exist"
-          fi
-      
-      - name: Create and push tag
-        if: steps.check_tag.outputs.exists == 'false'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "v${{ steps.version.outputs.version }}" -m "Release v${{ steps.version.outputs.version }}"
-          git push origin "v${{ steps.version.outputs.version }}"

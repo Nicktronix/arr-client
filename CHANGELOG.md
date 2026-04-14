@@ -55,7 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Web
 - Developer experience
   - Comprehensive test suite (21 tests)
-  - CI/CD pipeline with GitLab CI
+  - CI/CD pipeline with GitHub Actions
   - Code analysis and formatting checks
   - Coverage reporting
   - Security scanning

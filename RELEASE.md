@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project uses GitHub Actions for automated testing, security scanning, and release builds. The workflow automatically creates releases with Android APK when you merge a release branch to main.
+This project uses GitHub Actions for automated testing, security scanning, and release builds. Releases are intentional — you create a tag manually when you're ready to ship, and the pipeline takes care of the rest.
 
 **Note**: iOS builds are not included in CI/CD and must be built locally. See the iOS build section below for instructions.
 
@@ -23,21 +23,15 @@ This project uses GitHub Actions for automated testing, security scanning, and r
 - Non-blocking (shows warnings but doesn't fail builds)
 - GitHub Dependabot automatically creates PRs for security updates
 
-### 4. **Auto-Tag** (Runs ONLY on push to main)
-- Extracts version from `pubspec.yaml`
-- Creates git tag automatically (e.g., v1.2.3)
-- Triggers build workflow when tag is created
+### 4. **Build** (Runs ONLY on version tags — triggered by you pushing a tag)
+- Builds a signed Android APK (Ubuntu runner)
+- Version embedded from the tag name
+- Requires `ANDROID_KEYSTORE_FILE`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` secrets to be configured in the repo
 
-### 5. **Build** (Runs ONLY on version tags)
-- Android APK build (Ubuntu runner)
-- Version embedded from git tag
-- Artifacts stored for 90 days
-- **iOS builds**: Not included - see iOS Build Instructions section
-
-### 6. **Release** (Runs ONLY on version tags)
+### 5. **Release** (Runs after build, same tag trigger)
 - Creates GitHub Release automatically
-- Attaches Android APK as downloadable asset
-- Generates release notes with Android and iOS build instructions
+- Attaches signed Android APK as downloadable asset
+- Generates release notes with installation instructions
 
 ## Git Branching Strategy
 
@@ -59,9 +53,9 @@ main (protected) ← Releases only, auto-tagged on merge
 - ✅ Runs on **Pull Requests to develop** (validates before merge)
 - ✅ Runs on **develop branch pushes** (validates after merge)
 - ✅ Runs on **Pull Requests to main** (validates release branch)
-- ✅ **Auto-tags main** when release branch merges (extracts version from pubspec.yaml)
-- ✅ Runs on **version tags** (triggers builds and release creation)
+- ✅ **Build and release** triggered when you push a version tag (e.g. `v1.2.3`)
 - ❌ Does NOT run on feature/fix branches
+- ❌ Does NOT auto-tag — releases are created intentionally
 
 **Why workflows run twice**:
 1. **On PR**: Pre-merge validation (catches issues before they land)
@@ -219,35 +213,33 @@ version: 1.2.3+456
 
 ### Creating a Release
 
-**Step-by-Step Process:**
+The easiest way is to use the `/release` Claude command, which runs all pre-flight checks, updates the version, and creates the tag for you.
+
+**Manual process if needed:**
 
 1. **Update Version**
    ```bash
-   # Edit pubspec.yaml
-   version: 1.2.3+1
-   
-   git add pubspec.yaml
+   # Edit pubspec.yaml: version: 1.2.3+N (increment build number)
+   git add pubspec.yaml CHANGELOG.md
    git commit -m "chore: bump version to 1.2.3"
    git push origin main
    ```
 
-2. **Create Tag**
+2. **Create and push tag**
    ```bash
-   git tag -a v1.2.3 -m "Release 1.2.3 - Description of changes"
+   git tag -a v1.2.3 -m "Release 1.2.3"
    git push origin v1.2.3
    ```
 
 3. **Monitor Workflow**
-   - Go to Actions tab in GitHub
-   - Watch the workflow progress
-   - Auto-tag job runs immediately after merge
-   - Build job triggers when tag is created
-   - Android build takes ~5-10 minutes
+   ```bash
+   gh run list --workflow=release.yml --limit=5
+   ```
+   Or watch in the Actions tab. Android build takes ~5-10 minutes.
 
 4. **Access Release**
-   - Once complete, go to Releases section
-   - Download APK from release assets
-   - Share release URL with users
+   - Once complete, go to the Releases section
+   - Download the signed APK from release assets
 
 ### Distributing Builds
 
@@ -327,16 +319,21 @@ iOS builds require code signing and are not provided in GitHub releases. Users m
 
 ### Required GitHub Secrets
 
-For basic setup, no secrets needed! The workflow works out of the box.
+**For release builds** (required — releases will fail without these):
+- `ANDROID_KEYSTORE_FILE`: Base64-encoded keystore (`base64 -w 0 your-keystore.jks`)
+- `ANDROID_KEYSTORE_PASSWORD`: Keystore password
+- `ANDROID_KEY_ALIAS`: Key alias
+- `ANDROID_KEY_PASSWORD`: Key password
 
 **Optional**:
 - `CODECOV_TOKEN`: For test coverage reporting (free for public repos)
 
-**For future app store releases**:
-- `ANDROID_KEYSTORE_FILE`: Base64-encoded keystore for signing
-- `ANDROID_KEYSTORE_PASSWORD`: Keystore password
-- `ANDROID_KEY_ALIAS`: Key alias
-- `ANDROID_KEY_PASSWORD`: Key password
+**Generating a keystore** (one-time setup):
+```bash
+keytool -genkey -v -keystore arr-client.jks -keyalg RSA -keysize 2048 -validity 10000 -alias arr-client
+# Store this file securely — losing it means you cannot update the app for existing installs
+base64 -w 0 arr-client.jks  # paste output into ANDROID_KEYSTORE_FILE secret
+```
 
 ### GitHub Runners
 
