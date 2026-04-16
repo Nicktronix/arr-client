@@ -171,15 +171,16 @@ class AppStateManager extends ChangeNotifier {
   Future<void> deleteSonarrInstance(String id) async {
     final wasActive = _instanceManager.getActiveSonarrId() == id;
     await _instanceManager.deleteSonarrInstance(id);
+    _cacheManager.clearInstance(id);
     if (wasActive) {
       final remaining = _instanceManager.getSonarrInstancesMetadata();
       if (remaining.isNotEmpty) {
         await _instanceManager.setActiveSonarrId(remaining.first['id'] as String);
         _activeSonarrInstance = await _instanceManager.getActiveSonarrInstance();
+        clearSonarrCache();
       } else {
         _activeSonarrInstance = null;
       }
-      clearSonarrCache();
     }
     notifyListeners();
   }
@@ -204,15 +205,16 @@ class AppStateManager extends ChangeNotifier {
   Future<void> deleteRadarrInstance(String id) async {
     final wasActive = _instanceManager.getActiveRadarrId() == id;
     await _instanceManager.deleteRadarrInstance(id);
+    _cacheManager.clearInstance(id);
     if (wasActive) {
       final remaining = _instanceManager.getRadarrInstancesMetadata();
       if (remaining.isNotEmpty) {
         await _instanceManager.setActiveRadarrId(remaining.first['id'] as String);
         _activeRadarrInstance = await _instanceManager.getActiveRadarrInstance();
+        clearRadarrCache();
       } else {
         _activeRadarrInstance = null;
       }
-      clearRadarrCache();
     }
     notifyListeners();
   }

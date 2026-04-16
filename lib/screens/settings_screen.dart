@@ -76,18 +76,22 @@ class _InstanceListTabState extends State<_InstanceListTab> {
   @override
   void initState() {
     super.initState();
-    _appState.addListener(_loadInstances);
+    _appState.addListener(_onStateChanged);
     _loadInstances();
   }
 
   @override
   void dispose() {
-    _appState.removeListener(_loadInstances);
+    _appState.removeListener(_onStateChanged);
     super.dispose();
   }
 
-  Future<void> _loadInstances() async {
-    setState(() => _isLoading = true);
+  // Silent refresh — no loading spinner. Used by AppStateManager listener
+  // so active-instance switches don't incorrectly trigger loading state.
+  void _onStateChanged() => _loadInstances(silent: true);
+
+  Future<void> _loadInstances({bool silent = false}) async {
+    if (!silent) setState(() => _isLoading = true);
 
     try {
       final instancesMetadata = widget.serviceType == 'sonarr'
@@ -98,28 +102,29 @@ class _InstanceListTabState extends State<_InstanceListTab> {
           ? _appState.getActiveSonarrId()
           : _appState.getActiveRadarrId();
 
-      // Convert metadata to ServiceInstance objects (no credentials needed for display)
       final instances = instancesMetadata
           .map(
             (json) => ServiceInstance(
               id: json['id'] as String,
               name: json['name'] as String,
               baseUrl: json['baseUrl'] as String,
-              apiKey: '', // Not needed for display
+              apiKey: '',
               basicAuthUsername: null,
               basicAuthPassword: null,
             ),
           )
           .toList();
 
-      setState(() {
-        _instances = instances;
-        _activeInstanceId = activeId;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
       if (mounted) {
+        setState(() {
+          _instances = instances;
+          _activeInstanceId = activeId;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
