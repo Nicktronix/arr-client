@@ -93,7 +93,7 @@ See [`CLAUDE.md`](CLAUDE.md) for detailed architecture documentation.
 - **Biometric Lock**: Optional Face ID/Touch ID/fingerprint authentication
 - **Encrypted Backups**: AES-256-GCM with 600k PBKDF2 iterations (OWASP 2023 compliant)
 - **Network**: HTTPS support with certificate validation
-- **Zero vulnerabilities**: Comprehensive security audit completed (Dec 2025)
+- **Zero vulnerabilities**: Comprehensive security audit completed (Apr 2026)
 
 See [SECURITY.md](SECURITY.md) for responsible disclosure policy.
 

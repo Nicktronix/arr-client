@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/app_state_manager.dart';
+import 'error_formatter.dart';
 
 /// Standardized loading states for all screens
 enum LoadingState {
@@ -117,7 +118,7 @@ mixin CachedDataLoader<T extends StatefulWidget> on State<T> {
         if (cachedData == null) {
           setState(() {
             _loadingState = LoadingState.error;
-            _errorMessage = e.toString();
+            _errorMessage = ErrorFormatter.format(e);
           });
         }
       }

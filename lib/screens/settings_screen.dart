@@ -1190,7 +1190,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+          ).showSnackBar(SnackBar(content: Text('Error: ${ErrorFormatter.format(e)}')));
         }
         return;
       }

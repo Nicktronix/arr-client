@@ -54,7 +54,7 @@ Please provide as much information as possible:
 
 ### Network Security
 
-- ⚠️ **Avoid HTTP** for remote instances (only use for localhost)
+- ⚠️ **Avoid HTTP** for remote instances — HTTP is acceptable for local network instances (homelab default), but never use HTTP for internet-exposed servers
 - ⚠️ **Public networks**: Use VPN when accessing remote instances
 - ⚠️ **Port forwarding**: Prefer VPN over direct internet exposure
 - ✅ **Basic Auth**: Enable on reverse proxy for additional protection
@@ -164,4 +164,4 @@ For security-related questions (not vulnerabilities), open a [Discussion](https:
 
 ---
 
-**Last Updated**: December 2024
+**Last Updated**: April 2026
