@@ -170,7 +170,7 @@ class ApiClient {
   String _sanitizeMessage(String message) {
     // Remove anything that looks like credentials from URLs
     return message
-        .replaceAll(RegExp(r'://[^:@]+:[^:@]+@'), '://***:***@')
+        .replaceAll(RegExp(r'://[^@]+@'), '://***@')
         .replaceAll(
           RegExp(r'apikey=[^&\s]+', caseSensitive: false),
           'apikey=***',
