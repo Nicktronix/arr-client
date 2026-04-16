@@ -9,7 +9,6 @@ Local context files (`.claude/context/`) provide detailed reference on demand:
 | `architecture.md` | Code examples: CachedDataLoader, service singletons, three-state pattern, release dialog, API endpoints, auth headers, encryption specs |
 | `branching-strategy.md` | Branch model, naming rules, PR targets, full issue→branch→PR lifecycle |
 | `workflows.md` | Daily dev commands, pre-commit checklist, feature development steps, test commands |
-| `github-project.md` | Project ID, field IDs, status option IDs, label definitions |
 
 ---
 

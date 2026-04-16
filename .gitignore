@@ -10,8 +10,9 @@
 secrets/
 firebase_options.dart
 
-# Claude Code personal tooling (commands, context, memory)
-.claude/
+# Claude Code personal tooling (commands and personal context — not useful to contributors)
+.claude/commands/
+.claude/context/github-project.md
 
 # Miscellaneous
 *.class
