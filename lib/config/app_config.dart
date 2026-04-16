@@ -6,7 +6,8 @@ import '../services/app_state_manager.dart';
 class AppConfig {
   static final AppStateManager _appState = AppStateManager();
 
-  static String get sonarrBaseUrl => _appState.activeSonarrInstance?.baseUrl ?? '';
+  static String get sonarrBaseUrl =>
+      _appState.activeSonarrInstance?.baseUrl ?? '';
 
   static String get sonarrApiKey {
     // API key must be loaded from secure storage via the cached instance
@@ -26,7 +27,8 @@ class AppConfig {
     return _appState.getActiveSonarrId();
   }
 
-  static String get radarrBaseUrl => _appState.activeRadarrInstance?.baseUrl ?? '';
+  static String get radarrBaseUrl =>
+      _appState.activeRadarrInstance?.baseUrl ?? '';
 
   static String get radarrApiKey {
     // API key must be loaded from secure storage via the cached instance

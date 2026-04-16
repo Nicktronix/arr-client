@@ -175,8 +175,11 @@ class AppStateManager extends ChangeNotifier {
     if (wasActive) {
       final remaining = _instanceManager.getSonarrInstancesMetadata();
       if (remaining.isNotEmpty) {
-        await _instanceManager.setActiveSonarrId(remaining.first['id'] as String);
-        _activeSonarrInstance = await _instanceManager.getActiveSonarrInstance();
+        await _instanceManager.setActiveSonarrId(
+          remaining.first['id'] as String,
+        );
+        _activeSonarrInstance = await _instanceManager
+            .getActiveSonarrInstance();
         clearSonarrCache();
       } else {
         _activeSonarrInstance = null;
@@ -209,8 +212,11 @@ class AppStateManager extends ChangeNotifier {
     if (wasActive) {
       final remaining = _instanceManager.getRadarrInstancesMetadata();
       if (remaining.isNotEmpty) {
-        await _instanceManager.setActiveRadarrId(remaining.first['id'] as String);
-        _activeRadarrInstance = await _instanceManager.getActiveRadarrInstance();
+        await _instanceManager.setActiveRadarrId(
+          remaining.first['id'] as String,
+        );
+        _activeRadarrInstance = await _instanceManager
+            .getActiveRadarrInstance();
         clearRadarrCache();
       } else {
         _activeRadarrInstance = null;
