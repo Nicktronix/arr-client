@@ -121,10 +121,9 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
         _episode!['monitored'] = !currentMonitored;
       });
 
-      await _sonarr.setEpisodesMonitored(
-        [widget.episodeId],
-        monitored: !currentMonitored,
-      );
+      await _sonarr.setEpisodesMonitored([
+        widget.episodeId,
+      ], monitored: !currentMonitored);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

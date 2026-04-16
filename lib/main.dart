@@ -49,9 +49,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
 
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
-      // App going to background - clear auth time if timeout enabled
+    if (state == AppLifecycleState.paused) {
+      // App fully backgrounded — record background time for timeout check.
+      // Intentionally excludes inactive: that state fires for overlays and
+      // the biometric prompt itself, which would cause an immediate re-auth loop.
       _biometricService.clearAuthenticationTime();
     } else if (state == AppLifecycleState.resumed) {
       // App coming back from background - check if re-auth needed

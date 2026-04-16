@@ -740,7 +740,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
   bool _deviceSupported = false;
   List<BiometricType> _availableBiometrics = [];
   bool _biometricEnabled = false;
-  bool _timeoutEnabled = true;
+  int _timeoutMinutes = 5;
 
   @override
   void initState() {
@@ -1007,80 +1007,13 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
     required String title,
     required String message,
     bool confirmMode = false,
-  }) async {
-    final passwordController = TextEditingController();
-    final confirmController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
+  }) {
     return showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(message),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: passwordController,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(),
-                ),
-                obscureText: true,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Password is required';
-                  }
-                  if (value.length < 12) {
-                    return 'Password must be at least 12 characters';
-                  }
-                  return null;
-                },
-              ),
-              if (confirmMode) ...[
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: confirmController,
-                  decoration: const InputDecoration(
-                    labelText: 'Confirm Password',
-                    border: OutlineInputBorder(),
-                  ),
-                  obscureText: true,
-                  validator: (value) {
-                    if (value != passwordController.text) {
-                      return 'Passwords do not match';
-                    }
-                    return null;
-                  },
-                ),
-              ],
-              const SizedBox(height: 8),
-              Text(
-                confirmMode
-                    ? 'Use a strong password (min 12 characters). You will need it to import this backup.'
-                    : 'Enter the password you used when exporting this backup.',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(context, passwordController.text);
-              }
-            },
-            child: const Text('Continue'),
-          ),
-        ],
+      builder: (context) => _PasswordDialog(
+        title: title,
+        message: message,
+        confirmMode: confirmMode,
       ),
     );
   }
@@ -1092,14 +1025,14 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
       final supported = await _biometricService.isDeviceSupported();
       final biometrics = await _biometricService.getAvailableBiometrics();
       final enabled = await _biometricService.isBiometricEnabled();
-      final timeout = await _biometricService.isTimeoutEnabled();
+      final timeoutMinutes = await _biometricService.getTimeoutMinutes();
 
       if (mounted) {
         setState(() {
           _deviceSupported = supported;
           _availableBiometrics = biometrics;
           _biometricEnabled = enabled;
-          _timeoutEnabled = timeout;
+          _timeoutMinutes = timeoutMinutes;
           _isLoading = false;
         });
       }
@@ -1188,9 +1121,9 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
         return;
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error: ${ErrorFormatter.format(e)}')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: ${ErrorFormatter.format(e)}')),
+          );
         }
         return;
       }
@@ -1232,9 +1165,9 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
     }
   }
 
-  Future<void> _toggleTimeout(bool value) async {
-    await _biometricService.setTimeoutEnabled(value);
-    setState(() => _timeoutEnabled = value);
+  Future<void> _setTimeoutMinutes(int minutes) async {
+    await _biometricService.setTimeoutMinutes(minutes);
+    setState(() => _timeoutMinutes = minutes);
   }
 
   @override
@@ -1327,14 +1260,29 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
                 ),
                 if (_biometricEnabled) ...[
                   const Divider(),
-                  SwitchListTile(
-                    title: const Text('Require After Background'),
+                  ListTile(
+                    title: const Text('Re-authenticate After'),
                     subtitle: const Text(
-                      'Re-authenticate when returning from background (5 min timeout)',
+                      'Time before re-authentication is required',
                     ),
-                    value: _timeoutEnabled,
-                    onChanged: _toggleTimeout,
                     contentPadding: EdgeInsets.zero,
+                    trailing: DropdownButton<int>(
+                      value: _timeoutMinutes,
+                      onChanged: (value) {
+                        if (value != null) _setTimeoutMinutes(value);
+                      },
+                      items: const [
+                        DropdownMenuItem(
+                          value: BiometricService.timeoutNever,
+                          child: Text('Never'),
+                        ),
+                        DropdownMenuItem(value: 0, child: Text('Immediately')),
+                        DropdownMenuItem(value: 1, child: Text('1 minute')),
+                        DropdownMenuItem(value: 5, child: Text('5 minutes')),
+                        DropdownMenuItem(value: 15, child: Text('15 minutes')),
+                        DropdownMenuItem(value: 30, child: Text('30 minutes')),
+                      ],
+                    ),
                   ),
                 ],
               ],
@@ -1458,6 +1406,113 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
         Icon(icon, size: 20, color: Colors.green),
         const SizedBox(width: 8),
         Expanded(child: Text(text, style: const TextStyle(fontSize: 14))),
+      ],
+    );
+  }
+}
+
+class _PasswordDialog extends StatefulWidget {
+  final String title;
+  final String message;
+  final bool confirmMode;
+
+  const _PasswordDialog({
+    required this.title,
+    required this.message,
+    this.confirmMode = false,
+  });
+
+  @override
+  State<_PasswordDialog> createState() => _PasswordDialogState();
+}
+
+class _PasswordDialogState extends State<_PasswordDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _passwordController;
+  late final TextEditingController _confirmController;
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordController = TextEditingController();
+    _confirmController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _confirmController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(widget.message),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _passwordController,
+              decoration: const InputDecoration(
+                labelText: 'Password',
+                border: OutlineInputBorder(),
+              ),
+              obscureText: true,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Password is required';
+                }
+                if (value.length < 12) {
+                  return 'Password must be at least 12 characters';
+                }
+                return null;
+              },
+            ),
+            if (widget.confirmMode) ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _confirmController,
+                decoration: const InputDecoration(
+                  labelText: 'Confirm Password',
+                  border: OutlineInputBorder(),
+                ),
+                obscureText: true,
+                validator: (value) {
+                  if (value != _passwordController.text) {
+                    return 'Passwords do not match';
+                  }
+                  return null;
+                },
+              ),
+            ],
+            const SizedBox(height: 8),
+            Text(
+              widget.confirmMode
+                  ? 'Use a strong password (min 12 characters). You will need it to import this backup.'
+                  : 'Enter the password you used when exporting this backup.',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            if (_formKey.currentState!.validate()) {
+              Navigator.pop(context, _passwordController.text);
+            }
+          },
+          child: const Text('Continue'),
+        ),
       ],
     );
   }

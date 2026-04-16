@@ -45,7 +45,8 @@ class ErrorFormatter {
   /// Sanitize URLs to remove any credentials that might be exposed
   static String _sanitizeUrls(String text) {
     // Replace username:password in URLs with [CREDENTIALS]
-    final urlPattern = RegExp(r'https?://[^:]+:[^@]+@');
+    // [^/\s]* with backtracking correctly handles @ and : in passwords
+    final urlPattern = RegExp(r'https?://[^/\s]*@');
     text = text.replaceAll(urlPattern, 'https://[CREDENTIALS]@');
 
     // Remove API keys from URLs (if accidentally included)
