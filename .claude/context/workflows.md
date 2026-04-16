@@ -70,12 +70,13 @@ Future<List<dynamic>> getSeries() async {
 
 ```bash
 git checkout develop && git pull
-git checkout -b fix/31-instance-manager-deletion
+git checkout -b feature/my-feature   # or fix/, chore/, optimize/
 # ... make changes ...
 flutter test && flutter analyze
+dart format .
 git add <files>
-git commit -m "fix: correct service type check on instance deletion"
-git push origin fix/31-instance-manager-deletion
+git commit -m "feat: short description of change"
+git push origin feature/my-feature
 # Open PR to develop via /pr command
 ```
 

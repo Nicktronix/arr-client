@@ -82,17 +82,14 @@ class SonarrService {
   }
 
   ApiClient? _client;
-  String? _currentInstanceId;
 
-  void _onInstanceChanged() {
-    final newId = AppConfig.activeSonarrInstanceId;
-    if (_currentInstanceId != newId) { reset(); _currentInstanceId = newId; }
-  }
+  // Always reset on any AppStateManager notification — covers both instance
+  // switches AND credential edits on the active instance (same ID, new creds)
+  void _onInstanceChanged() => reset();
 
   Future<ApiClient> get _api async {
     if (_client == null) {
       _client = ApiClient(baseUrl: AppConfig.sonarrBaseUrl, apiKey: AppConfig.sonarrApiKey);
-      _currentInstanceId = AppConfig.activeSonarrInstanceId;
     }
     return _client!;
   }
@@ -101,7 +98,7 @@ class SonarrService {
 }
 ```
 
-Services auto-detect instance changes — no manual coordination needed.
+Services auto-detect instance changes — no manual coordination needed. Do NOT add an ID guard to `_onInstanceChanged` — it prevents reset when editing credentials on the active instance.
 
 ---
 
@@ -170,37 +167,43 @@ String _formatPublishDate(String publishDate) {
 
 ```
 # Configuration
-GET /qualityProfile          → List<dynamic>
-GET /rootFolder              → List<dynamic>
-GET /tag                     → List<dynamic>
+GET  /qualityProfile               → List<dynamic>
+GET  /rootFolder                   → List<dynamic>
+GET  /tag                          → List<dynamic>
+GET  /language                     → List<dynamic>  [{id, name}, ...]
 
 # Library
-GET /series                  → List<dynamic>
-GET /series/{id}             → Map<String, dynamic>
-GET /series/lookup?term=...  → List<dynamic>
-GET /movie                   → List<dynamic>
-GET /movie/{id}              → Map<String, dynamic>
+GET  /series                       → List<dynamic>
+GET  /series/{id}                  → Map<String, dynamic>
+GET  /series/lookup?term=...       → List<dynamic>  (TVdb search — may include items NOT in library)
+GET  /movie                        → List<dynamic>
+GET  /movie/{id}                   → Map<String, dynamic>
 
 # Queue & calendar
-GET /queue                   → Map with 'records' key
-GET /calendar?start=...&end=...
+GET  /queue                        → Map with 'records' key
+GET  /calendar?start=...&end=...
+DELETE /queue/{id}?removeFromClient=true&blocklist=false
 
 # Episodes
-GET /episode?seriesId={id}   → List<dynamic>
+GET  /episode?seriesId={id}        → List<dynamic>
 
-# Manual import
-GET /manualimport?downloadId=... → List<dynamic>
+# Manual import (v3 — do NOT use POST /command for this)
+GET  /manualimport?downloadId=...  → List<dynamic>   candidates
+PUT  /manualimport                 → List of candidate objects  (triggers import)
 
 # Release search
-GET /release?episodeId={id}  → List<dynamic>
-GET /release?movieId={id}    → List<dynamic>
-POST /release                → download a release
+GET  /release?episodeId={id}       → List<dynamic>
+GET  /release?movieId={id}         → List<dynamic>
+POST /release                      → download a release
 
 # Commands (background tasks)
 POST /command  { "name": "EpisodeSearch", "episodeIds": [...] }
 POST /command  { "name": "SeriesSearch",  "seriesId": N }
 POST /command  { "name": "MoviesSearch",  "movieIds": [...] }
 ```
+
+`ApiClient` provides `get`, `post`, `put`, `putList` (for array bodies), `delete`.
+Use `putList` for `PUT /manualimport` — `put` expects a Map body, not a List.
 
 ApiClient automatically prepends `/api/v3` to all paths.
 

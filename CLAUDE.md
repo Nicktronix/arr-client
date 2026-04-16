@@ -26,7 +26,7 @@ Local context files (`.claude/context/`) provide detailed reference on demand:
 Three core singletons form the foundation:
 
 **`AppStateManager`** (`lib/services/app_state_manager.dart`)
-Single source of truth for active instances. `ChangeNotifier` that broadcasts instance changes and coordinates cache invalidation. Never access `InstanceManager` directly from screens — always go through `AppStateManager`.
+Single source of truth for active instances. `ChangeNotifier` that broadcasts instance changes and coordinates cache invalidation. Owns all instance CRUD (`addSonarrInstance`, `deleteSonarrInstance`, `updateSonarrInstance`, etc.) — never call `InstanceManager` CRUD directly from screens or services, always go through `AppStateManager`.
 
 **`CacheManager`** (`lib/services/cache_manager.dart`)
 In-memory cache with instance-aware keys (e.g. `series_list_instance123`). 5-minute validity with stale-while-revalidate. Cache keys must be globally unique across all screens.
@@ -84,13 +84,15 @@ Singleton API clients that listen to `AppStateManager` and auto-reset their `Api
 ## Common pitfalls
 
 1. Use `CachedDataLoader` for data screens — don't implement manual loading states
-2. Never access `InstanceManager` directly from screens — use `AppStateManager`
+2. Never call `InstanceManager` CRUD directly — all instance add/update/delete goes through `AppStateManager`
 3. Cache keys must be globally unique (instance suffix is the same per service, two screens with the same base key collide)
 4. `RefreshIndicator` requires a scrollable child (ListView, CustomScrollView, etc.)
 5. Empty state ≠ error state — different icons, messages, and CTAs
-6. Service reset is automatic — `AppStateManager` calls `reset()` on instance changes
+6. Service reset is automatic — `AppStateManager` calls `reset()` on any notification (including credential edits on the active instance — do not add an ID guard)
 7. All crypto must run in isolates via `compute()` — never on the UI thread
 8. `saveFile()` on mobile requires the `bytes` parameter; desktop uses the returned path
+9. `TextEditingController` must be declared as a field, initialized in `initState`, and disposed in `dispose()` — never created inline in `build()` (memory leak, cursor position lost on every rebuild)
+10. For `PUT` endpoints that accept a list body, use `ApiClient.putList()` — `put()` expects a `Map`, not a `List`
 
 ---
 
@@ -115,4 +117,6 @@ Singleton API clients that listen to `AppStateManager` and auto-reset their `Api
 | `lib/screens/settings_screen.dart` | Instance management |
 | `lib/screens/series_list_screen.dart` | Reference implementation of CachedDataLoader |
 | `lib/screens/release_search_screen.dart` | Unified release dialog for series and movies |
+| `lib/screens/queue_screen.dart` | Combined Sonarr+Radarr queue, remove, manual import entry point |
+| `lib/screens/manual_import_screen.dart` | Manual import flow — candidate list, edit dialog, import execution |
 | `test/widget_test.dart` | All tests (21 passing) |
