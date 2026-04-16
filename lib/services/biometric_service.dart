@@ -133,8 +133,10 @@ class BiometricService {
     final timeout = await getTimeoutMinutes();
     if (timeout == timeoutNever) return false;
     if (_lastAuthTime == null) return true; // Never authenticated this session
-    if (_backgroundTime == null) return false; // Not backgrounded since last auth
-    if (timeout == 0) return true; // Immediately — any background triggers re-auth
+    if (_backgroundTime == null)
+      return false; // Not backgrounded since last auth
+    if (timeout == 0)
+      return true; // Immediately — any background triggers re-auth
     return DateTime.now().difference(_backgroundTime!).inMinutes >= timeout;
   }
 

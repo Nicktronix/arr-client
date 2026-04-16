@@ -46,9 +46,7 @@ class ApiClient {
   /// Execute [request] with up to [_maxRetries] retries on connection errors.
   /// Timeouts and HTTP errors are not retried — they either indicate a slow
   /// server (retrying wastes time) or a client mistake (retrying won't help).
-  Future<dynamic> _withRetry(
-    Future<http.Response> Function() request,
-  ) async {
+  Future<dynamic> _withRetry(Future<http.Response> Function() request) async {
     int attempt = 0;
     while (true) {
       try {
@@ -60,7 +58,9 @@ class ApiClient {
         throw ApiException('Request timed out - please try again');
       } on http.ClientException catch (e) {
         if (attempt >= _maxRetries) {
-          throw ApiException('Connection error: ${_sanitizeMessage(e.message)}');
+          throw ApiException(
+            'Connection error: ${_sanitizeMessage(e.message)}',
+          );
         }
         await Future.delayed(Duration(seconds: attempt + 1));
         attempt++;

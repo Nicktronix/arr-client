@@ -89,7 +89,9 @@ class SonarrService {
   /// Get queue (current downloads)
   Future<Map<String, dynamic>> getQueue() async {
     final client = await _api;
-    return await client.get('/queue?pageSize=500&sortKey=timeleft&sortDirection=ascending');
+    return await client.get(
+      '/queue?pageSize=500&sortKey=timeleft&sortDirection=ascending',
+    );
   }
 
   /// Remove item from queue
