@@ -180,7 +180,7 @@ class ApiClient {
 
   String _sanitizeMessage(String message) {
     return message
-        .replaceAll(RegExp(r'://[^@]+@'), '://***@')
+        .replaceAll(RegExp(r'://[^/\s]*@'), '://***@')
         .replaceAll(
           RegExp(r'apikey=[^&\s]+', caseSensitive: false),
           'apikey=***',

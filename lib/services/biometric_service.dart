@@ -4,7 +4,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Service for managing biometric authentication
 class BiometricService {
   static const String _biometricEnabledKey = 'biometric_enabled';
-  static const String _biometricTimeoutKey = 'biometric_timeout_enabled';
+  // Legacy key — stored bool (true = 5 min timeout, false = never). Read only for migration.
+  static const String _biometricTimeoutLegacyKey = 'biometric_timeout_enabled';
+  static const String _biometricTimeoutMinutesKey = 'biometric_timeout_minutes';
+
+  /// Sentinel value meaning "never re-authenticate after background".
+  static const int timeoutNever = -1;
 
   static final BiometricService _instance = BiometricService._internal();
   factory BiometricService() => _instance;
@@ -13,6 +18,12 @@ class BiometricService {
   final LocalAuthentication _localAuth = LocalAuthentication();
   SharedPreferences? _prefs;
   DateTime? _lastAuthTime;
+  // Tracks when the app was backgrounded. Null means the app has not been
+  // backgrounded since last auth (or auth cleared it). needsReAuthentication
+  // checks elapsed time since this point, not since _lastAuthTime, so that
+  // a successful re-auth clears it and prevents re-prompting on the resumed
+  // lifecycle event that fires when the biometric dialog dismisses.
+  DateTime? _backgroundTime;
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
@@ -66,24 +77,36 @@ class BiometricService {
     await prefs.setBool(_biometricEnabledKey, enabled);
     if (enabled) {
       _lastAuthTime = DateTime.now();
+      _backgroundTime = null;
     }
   }
 
-  /// Check if timeout is enabled (re-auth after background)
-  Future<bool> isTimeoutEnabled() async {
+  /// Get the configured re-authentication timeout in minutes.
+  ///
+  /// Returns [timeoutNever] (-1) to never re-authenticate after backgrounding.
+  /// Returns 0 to re-authenticate immediately on every foreground.
+  /// Returns a positive integer for a minute-based timeout.
+  ///
+  /// Migrates from the legacy bool key on first read.
+  Future<int> getTimeoutMinutes() async {
     final prefs = await _preferences;
-    return prefs.getBool(_biometricTimeoutKey) ?? true; // Default true
+    if (prefs.containsKey(_biometricTimeoutMinutesKey)) {
+      return prefs.getInt(_biometricTimeoutMinutesKey) ?? 5;
+    }
+    // Migrate from legacy bool: true → 5 min, false → never
+    final legacyEnabled = prefs.getBool(_biometricTimeoutLegacyKey) ?? true;
+    return legacyEnabled ? 5 : timeoutNever;
   }
 
-  /// Enable or disable timeout feature
-  Future<void> setTimeoutEnabled(bool enabled) async {
+  /// Set the re-authentication timeout. Use [timeoutNever] to disable.
+  Future<void> setTimeoutMinutes(int minutes) async {
     final prefs = await _preferences;
-    await prefs.setBool(_biometricTimeoutKey, enabled);
+    await prefs.setInt(_biometricTimeoutMinutesKey, minutes);
   }
 
-  /// Authenticate with biometrics
-  /// Returns true if authentication succeeded, false otherwise
-  /// Throws LocalAuthException with details if authentication fails
+  /// Authenticate with biometrics.
+  /// Returns true if authentication succeeded, false otherwise.
+  /// Throws PlatformException if the platform reports an auth error.
   Future<bool> authenticate({
     required String reason,
     bool biometricOnly = false,
@@ -96,31 +119,37 @@ class BiometricService {
 
     if (didAuthenticate) {
       _lastAuthTime = DateTime.now();
+      // Clear background time so the resumed event that fires when the
+      // biometric dialog dismisses does not trigger another re-auth prompt.
+      _backgroundTime = null;
     }
 
     return didAuthenticate;
   }
 
-  /// Check if authentication is required based on timeout
-  /// Returns true if enough time has passed since last auth
-  Future<bool> needsReAuthentication({int timeoutMinutes = 5}) async {
-    if (!await isTimeoutEnabled()) return false;
-    if (_lastAuthTime == null) return true;
-
-    final now = DateTime.now();
-    final difference = now.difference(_lastAuthTime!);
-    return difference.inMinutes >= timeoutMinutes;
+  /// Check if re-authentication is required based on the configured timeout.
+  /// Returns true if the user should be prompted to authenticate again.
+  Future<bool> needsReAuthentication() async {
+    final timeout = await getTimeoutMinutes();
+    if (timeout == timeoutNever) return false;
+    if (_lastAuthTime == null) return true; // Never authenticated this session
+    if (_backgroundTime == null) return false; // Not backgrounded since last auth
+    if (timeout == 0) return true; // Immediately — any background triggers re-auth
+    return DateTime.now().difference(_backgroundTime!).inMinutes >= timeout;
   }
 
   /// Mark that user has just authenticated (called after successful auth)
   void markAuthenticated() {
     _lastAuthTime = DateTime.now();
+    _backgroundTime = null;
   }
 
-  /// Clear authentication timestamp (call when app is backgrounded)
+  /// Record that the app has been backgrounded. Call only on AppLifecycleState.paused
+  /// (not inactive — inactive fires for overlays and the biometric dialog itself).
   Future<void> clearAuthenticationTime() async {
-    if (await isTimeoutEnabled()) {
-      _lastAuthTime = null;
+    final timeout = await getTimeoutMinutes();
+    if (timeout != timeoutNever) {
+      _backgroundTime = DateTime.now();
     }
   }
 
