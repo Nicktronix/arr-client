@@ -163,18 +163,9 @@ class InstanceManager {
     final instances = await getSonarrInstances();
     instances.removeWhere((i) => i.id == id);
     await saveSonarrInstances(instances);
-
-    // Delete credentials from secure storage
     await _deleteInstanceCredentials(id, 'sonarr');
-
-    // If we deleted the active instance, clear it or set to first available
-    final activeId = getActiveSonarrId();
-    if (activeId == id) {
-      if (instances.isNotEmpty) {
-        await setActiveSonarrId(instances.first.id);
-      } else {
-        await _preferences.remove(_activeSonarrKey);
-      }
+    if (getActiveSonarrId() == id) {
+      await _preferences.remove(_activeSonarrKey);
     }
   }
 
@@ -224,18 +215,9 @@ class InstanceManager {
     final instances = await getRadarrInstances();
     instances.removeWhere((i) => i.id == id);
     await saveRadarrInstances(instances);
-
-    // Delete credentials from secure storage
     await _deleteInstanceCredentials(id, 'radarr');
-
-    // If we deleted the active instance, clear it or set to first available
-    final activeId = getActiveRadarrId();
-    if (activeId == id) {
-      if (instances.isNotEmpty) {
-        await setActiveRadarrId(instances.first.id);
-      } else {
-        await _preferences.remove(_activeRadarrKey);
-      }
+    if (getActiveRadarrId() == id) {
+      await _preferences.remove(_activeRadarrKey);
     }
   }
 

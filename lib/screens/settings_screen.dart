@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:file_picker/file_picker.dart';
-import '../services/instance_manager.dart';
 import '../services/app_state_manager.dart';
 import '../services/api_client.dart';
 import '../services/biometric_service.dart';
@@ -20,7 +19,6 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final InstanceManager _instanceManager = InstanceManager();
 
   @override
   void initState() {
@@ -51,14 +49,8 @@ class _SettingsScreenState extends State<SettingsScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          _InstanceListTab(
-            serviceType: 'sonarr',
-            instanceManager: _instanceManager,
-          ),
-          _InstanceListTab(
-            serviceType: 'radarr',
-            instanceManager: _instanceManager,
-          ),
+          const _InstanceListTab(serviceType: 'sonarr'),
+          const _InstanceListTab(serviceType: 'radarr'),
           const _SecuritySettingsTab(),
         ],
       ),
@@ -68,12 +60,8 @@ class _SettingsScreenState extends State<SettingsScreen>
 
 class _InstanceListTab extends StatefulWidget {
   final String serviceType; // 'sonarr' or 'radarr'
-  final InstanceManager instanceManager;
 
-  const _InstanceListTab({
-    required this.serviceType,
-    required this.instanceManager,
-  });
+  const _InstanceListTab({required this.serviceType});
 
   @override
   State<_InstanceListTab> createState() => _InstanceListTabState();
@@ -95,14 +83,13 @@ class _InstanceListTabState extends State<_InstanceListTab> {
     setState(() => _isLoading = true);
 
     try {
-      // Use fast metadata-only methods - no secure storage access needed
       final instancesMetadata = widget.serviceType == 'sonarr'
-          ? widget.instanceManager.getSonarrInstancesMetadata()
-          : widget.instanceManager.getRadarrInstancesMetadata();
+          ? _appState.getSonarrInstancesMetadata()
+          : _appState.getRadarrInstancesMetadata();
 
       final activeId = widget.serviceType == 'sonarr'
-          ? widget.instanceManager.getActiveSonarrId()
-          : widget.instanceManager.getActiveRadarrId();
+          ? _appState.getActiveSonarrId()
+          : _appState.getActiveRadarrId();
 
       // Convert metadata to ServiceInstance objects (no credentials needed for display)
       final instances = instancesMetadata
@@ -153,8 +140,8 @@ class _InstanceListTabState extends State<_InstanceListTab> {
       // Revert radio button on error
       setState(
         () => _activeInstanceId = widget.serviceType == 'sonarr'
-            ? widget.instanceManager.getActiveSonarrId()
-            : widget.instanceManager.getActiveRadarrId(),
+            ? _appState.getActiveSonarrId()
+            : _appState.getActiveRadarrId(),
       );
 
       if (mounted) {
@@ -189,9 +176,9 @@ class _InstanceListTabState extends State<_InstanceListTab> {
 
     try {
       if (widget.serviceType == 'sonarr') {
-        await widget.instanceManager.deleteSonarrInstance(instance.id);
+        await _appState.deleteSonarrInstance(instance.id);
       } else {
-        await widget.instanceManager.deleteRadarrInstance(instance.id);
+        await _appState.deleteRadarrInstance(instance.id);
       }
 
       await _loadInstances();
@@ -219,7 +206,7 @@ class _InstanceListTabState extends State<_InstanceListTab> {
       context: context,
       builder: (context) => _InstanceFormDialog(
         serviceType: widget.serviceType,
-        instanceManager: widget.instanceManager,
+        appState: _appState,
         instance: instance,
         onSaved: _loadInstances,
       ),
@@ -352,13 +339,13 @@ class _InstanceListTabState extends State<_InstanceListTab> {
 
 class _InstanceFormDialog extends StatefulWidget {
   final String serviceType;
-  final InstanceManager instanceManager;
+  final AppStateManager appState;
   final ServiceInstance? instance;
   final VoidCallback onSaved;
 
   const _InstanceFormDialog({
     required this.serviceType,
-    required this.instanceManager,
+    required this.appState,
     this.instance,
     required this.onSaved,
   });
@@ -526,18 +513,16 @@ class _InstanceFormDialogState extends State<_InstanceFormDialog> {
       );
 
       if (widget.instance != null) {
-        // Update existing
         if (widget.serviceType == 'sonarr') {
-          await widget.instanceManager.updateSonarrInstance(instance);
+          await widget.appState.updateSonarrInstance(instance);
         } else {
-          await widget.instanceManager.updateRadarrInstance(instance);
+          await widget.appState.updateRadarrInstance(instance);
         }
       } else {
-        // Add new
         if (widget.serviceType == 'sonarr') {
-          await widget.instanceManager.addSonarrInstance(instance);
+          await widget.appState.addSonarrInstance(instance);
         } else {
-          await widget.instanceManager.addRadarrInstance(instance);
+          await widget.appState.addRadarrInstance(instance);
         }
       }
 

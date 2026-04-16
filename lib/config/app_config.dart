@@ -1,25 +1,12 @@
 import '../services/app_state_manager.dart';
-import '../services/instance_manager.dart';
 
-/// Configuration getters that delegate to AppStateManager and InstanceManager
-/// Uses CURRENT active ID from SharedPreferences, not cached instance object
-/// This ensures credentials always match the currently selected instance
+/// Configuration getters that delegate to AppStateManager.
+/// AppStateManager is the single source of truth — all instance mutations
+/// go through it, so these getters are always in sync.
 class AppConfig {
   static final AppStateManager _appState = AppStateManager();
-  static final InstanceManager _instanceManager = InstanceManager();
 
-  // Sonarr Configuration - loads credentials on-demand using current ID
-  static String get sonarrBaseUrl {
-    final id = _appState.getActiveSonarrId();
-    if (id == null) return '';
-    final metadata = _instanceManager.getSonarrInstancesMetadata();
-    try {
-      final instance = metadata.firstWhere((m) => m['id'] == id);
-      return instance['baseUrl'] as String? ?? '';
-    } catch (e) {
-      return '';
-    }
-  }
+  static String get sonarrBaseUrl => _appState.activeSonarrInstance?.baseUrl ?? '';
 
   static String get sonarrApiKey {
     // API key must be loaded from secure storage via the cached instance
@@ -39,18 +26,7 @@ class AppConfig {
     return _appState.getActiveSonarrId();
   }
 
-  // Radarr Configuration - loads credentials on-demand using current ID
-  static String get radarrBaseUrl {
-    final id = _appState.getActiveRadarrId();
-    if (id == null) return '';
-    final metadata = _instanceManager.getRadarrInstancesMetadata();
-    try {
-      final instance = metadata.firstWhere((m) => m['id'] == id);
-      return instance['baseUrl'] as String? ?? '';
-    } catch (e) {
-      return '';
-    }
-  }
+  static String get radarrBaseUrl => _appState.activeRadarrInstance?.baseUrl ?? '';
 
   static String get radarrApiKey {
     // API key must be loaded from secure storage via the cached instance
