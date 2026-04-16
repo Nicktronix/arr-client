@@ -3,6 +3,7 @@ import '../services/sonarr_service.dart';
 import '../services/radarr_service.dart';
 import '../services/app_state_manager.dart';
 import '../utils/cached_data_loader.dart';
+import '../utils/error_formatter.dart';
 import 'manual_import_screen.dart';
 
 class QueueScreen extends StatefulWidget {
@@ -256,8 +257,7 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
 
     // Calculate progress
     final double progress = size > 0 ? ((size - sizeleft) / size) : 0.0;
-    final double downloadedMB = (size - sizeleft) / 1024 / 1024;
-    final double totalMB = size / 1024 / 1024;
+    final double downloaded = size - sizeleft;
 
     // Manual import only available when files are actually downloaded
     // Available for: completed downloads, or downloads with warnings/errors (files present but need manual matching)
@@ -435,7 +435,7 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
                     ),
                   ),
                   Text(
-                    '${downloadedMB.toStringAsFixed(1)} MB / ${totalMB.toStringAsFixed(1)} MB',
+                    '${_formatBytes(downloaded.toInt())} / ${_formatBytes(size.toInt())}',
                     style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                   ),
                 ],
@@ -689,6 +689,15 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
     }
   }
 
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+
   Future<void> _showManualImportDialog(Map<String, dynamic> item) async {
     final String source = item['source'];
     final String? downloadId = item['downloadId'];
@@ -807,7 +816,7 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to remove: ${e.toString()}'),
+            content: Text('Failed to remove: ${ErrorFormatter.format(e)}'),
             backgroundColor: Colors.red,
           ),
         );

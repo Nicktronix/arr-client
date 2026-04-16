@@ -10,9 +10,10 @@
 secrets/
 firebase_options.dart
 
-# Claude Code personal tooling (commands and personal context — not useful to contributors)
+# Claude Code personal tooling (commands, personal context, and local settings — not useful to contributors)
 .claude/commands/
 .claude/context/github-project.md
+.claude/settings.local.json
 
 # Miscellaneous
 *.class
@@ -96,6 +97,7 @@ key.properties
 **/android/app/profile
 **/android/app/release
 GeneratedPluginRegistrant.java
+android/NOTICE
 
 # iOS
 **/ios/Flutter/.last_build_id
