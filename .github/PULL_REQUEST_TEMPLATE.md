@@ -40,9 +40,8 @@ Fixes #
 
 ## Checklist
 <!-- Mark completed items with an 'x' -->
-- [ ] My code follows the project's coding standards (see `.github/copilot-instructions.md`)
+- [ ] My code follows the project's coding standards (see `CLAUDE.md`)
 - [ ] I have performed a self-review of my code
-- [ ] I have commented my code, particularly in hard-to-understand areas
 - [ ] I have updated the documentation if needed
 - [ ] My changes generate no new warnings or errors
 - [ ] I have added tests that prove my fix is effective or that my feature works
