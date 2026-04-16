@@ -147,6 +147,84 @@ class AppStateManager extends ChangeNotifier {
     return _instanceManager.getActiveRadarrId();
   }
 
+  // --- Instance CRUD ---
+  // All mutations go through AppStateManager so persistence, in-memory state,
+  // and listener notifications are always kept in sync atomically.
+
+  Future<void> addSonarrInstance(ServiceInstance instance) async {
+    await _instanceManager.addSonarrInstance(instance);
+    if (_instanceManager.getActiveSonarrId() == instance.id) {
+      _activeSonarrInstance = await _instanceManager.getActiveSonarrInstance();
+    }
+    notifyListeners();
+  }
+
+  Future<void> updateSonarrInstance(ServiceInstance instance) async {
+    await _instanceManager.updateSonarrInstance(instance);
+    if (_instanceManager.getActiveSonarrId() == instance.id) {
+      _activeSonarrInstance = await _instanceManager.getActiveSonarrInstance();
+      clearSonarrCache();
+    }
+    notifyListeners();
+  }
+
+  Future<void> deleteSonarrInstance(String id) async {
+    final wasActive = _instanceManager.getActiveSonarrId() == id;
+    await _instanceManager.deleteSonarrInstance(id);
+    _cacheManager.clearInstance(id);
+    if (wasActive) {
+      final remaining = _instanceManager.getSonarrInstancesMetadata();
+      if (remaining.isNotEmpty) {
+        await _instanceManager.setActiveSonarrId(
+          remaining.first['id'] as String,
+        );
+        _activeSonarrInstance = await _instanceManager
+            .getActiveSonarrInstance();
+        clearSonarrCache();
+      } else {
+        _activeSonarrInstance = null;
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> addRadarrInstance(ServiceInstance instance) async {
+    await _instanceManager.addRadarrInstance(instance);
+    if (_instanceManager.getActiveRadarrId() == instance.id) {
+      _activeRadarrInstance = await _instanceManager.getActiveRadarrInstance();
+    }
+    notifyListeners();
+  }
+
+  Future<void> updateRadarrInstance(ServiceInstance instance) async {
+    await _instanceManager.updateRadarrInstance(instance);
+    if (_instanceManager.getActiveRadarrId() == instance.id) {
+      _activeRadarrInstance = await _instanceManager.getActiveRadarrInstance();
+      clearRadarrCache();
+    }
+    notifyListeners();
+  }
+
+  Future<void> deleteRadarrInstance(String id) async {
+    final wasActive = _instanceManager.getActiveRadarrId() == id;
+    await _instanceManager.deleteRadarrInstance(id);
+    _cacheManager.clearInstance(id);
+    if (wasActive) {
+      final remaining = _instanceManager.getRadarrInstancesMetadata();
+      if (remaining.isNotEmpty) {
+        await _instanceManager.setActiveRadarrId(
+          remaining.first['id'] as String,
+        );
+        _activeRadarrInstance = await _instanceManager
+            .getActiveRadarrInstance();
+        clearRadarrCache();
+      } else {
+        _activeRadarrInstance = null;
+      }
+    }
+    notifyListeners();
+  }
+
   /// Get active Sonarr instance name (fast, from SharedPreferences metadata)
   String? getActiveSonarrName() {
     final id = getActiveSonarrId();

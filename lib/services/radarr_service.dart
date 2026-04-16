@@ -12,15 +12,8 @@ class RadarrService {
   }
 
   ApiClient? _client;
-  String? _currentInstanceId;
 
-  void _onInstanceChanged() {
-    final newInstanceId = AppConfig.activeRadarrInstanceId;
-    if (_currentInstanceId != newInstanceId) {
-      reset();
-      _currentInstanceId = newInstanceId;
-    }
-  }
+  void _onInstanceChanged() => reset();
 
   Future<ApiClient> get _api async {
     if (_client == null) {
@@ -42,7 +35,6 @@ class RadarrService {
         basicAuthUsername: basicAuthUsername,
         basicAuthPassword: basicAuthPassword,
       );
-      _currentInstanceId = AppConfig.activeRadarrInstanceId;
     }
     return _client!;
   }
