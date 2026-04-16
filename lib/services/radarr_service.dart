@@ -91,6 +91,20 @@ class RadarrService {
     return await client.get('/queue');
   }
 
+  /// Remove item from queue
+  /// removeFromClient: Remove from download client (default true)
+  /// blocklist: Add to blocklist to prevent re-downloading (default false)
+  Future<void> removeQueueItem(
+    int id, {
+    bool removeFromClient = true,
+    bool blocklist = false,
+  }) async {
+    final client = await _api;
+    await client.delete(
+      '/queue/$id?removeFromClient=$removeFromClient&blocklist=$blocklist',
+    );
+  }
+
   /// Add a new movie
   Future<Map<String, dynamic>> addMovie(Map<String, dynamic> movieData) async {
     final client = await _api;
@@ -198,5 +212,28 @@ class RadarrService {
   Future<void> deleteMovieFile(int movieFileId) async {
     final client = await _api;
     await client.delete('/moviefile/$movieFileId');
+  }
+
+  /// Get manual import candidates for a download
+  Future<List<dynamic>> getManualImport({
+    required String downloadId,
+    bool filterExistingFiles = false,
+  }) async {
+    final client = await _api;
+    return await client.get(
+      '/manualimport?downloadId=$downloadId&filterExistingFiles=$filterExistingFiles',
+    );
+  }
+
+  /// Import selected manual import items
+  Future<void> performManualImport(List<Map<String, dynamic>> imports) async {
+    final client = await _api;
+    await client.putList('/manualimport', imports);
+  }
+
+  /// Get available languages
+  Future<List<dynamic>> getLanguages() async {
+    final client = await _api;
+    return await client.get('/language');
   }
 }

@@ -8,6 +8,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Queue screen enhancements**
+  - Warning message banners for downloads with issues (import failures, etc.)
+  - Tap-to-import navigation for downloads with warning/error status
+  - Custom format display with visual chips
+  - Extended metadata display (download client, indexer, languages, CF score, age)
+  - Season-level episode info fallback for better display
+- **Manual import screen** (dedicated full-screen workflow)
+  - Navigation from queue items with import issues
+  - Three-state loading pattern (loading → error/empty → success)
+  - Context banner showing queue item title and selection count
+  - Alphabetical file sorting by relative path (case-insensitive)
+  - File list with expandable cards showing all metadata
+  - All files pre-selected by default (user decides what to import)
+  - Select all/deselect all toggle checkbox in bottom bar
+  - Visual indicators for matched vs unmatched files
+  - Rejection reasons shown as informational warnings (can be overridden)
+  - Custom format chips with compact styling
+  - **Full edit dialog for overriding matches**:
+    - Live search for series/movies with dropdown results
+    - Season selector dropdown (TV only)
+    - Multi-select episode checkboxes (TV only)
+    - Quality dropdown from API schema
+    - Release group text field
+    - Multi-select language chips (English, Japanese, Other)
+    - Apply button updates candidate object in real-time
+  - Bottom action bar with toggle selection and import buttons
+  - Dual-service support (Sonarr and Radarr)
+  - Progress feedback during import operation
+  - Automatic queue refresh after successful import
+  - Reusable from multiple locations in the app
 - **Episode detail screen** with comprehensive information
   - Full episode metadata (title, overview, air date, runtime)
   - Status badges (Downloaded/Missing/Upcoming, Monitored/Unmonitored)
@@ -38,10 +68,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Automatic/interactive search options
 
 ### Changed
-- Season detail screen episode cards now tappable for navigation to episode details
-- Movie detail screen uses PopupMenuButton for actions (replaces action section)
-- API client now supports custom timeout parameter for slow endpoints
-- Release searches use extended 60-second timeout (improved for slow indexers)
+- **Queue screen UI improvements**
+  - Switched from Row to Wrap layout for metadata (better responsive behavior)
+  - Added InkWell wrapper for tappable import-pending cards
+  - Enhanced status chip logic with `trackedDownloadStatus` priority
+  - Improved time remaining display (shows "Completed" for 00:00:00)
+  - Added touch_app icon hint for interactive cards
+- **Service layer additions**
+  - `SonarrService.getQualityProfileSchema()` - Fetch quality schema for manual import editing
+  - `SonarrService.getManualImport()` - Fetch manual import candidates for a download
+  - `SonarrService.performManualImport()` - Execute manual import command
+  - `RadarrService.getQualityProfileSchema()` - Fetch quality schema for manual import editing
+  - `RadarrService.getManualImport()` - Fetch manual import candidates for a download
+  - `RadarrService.performManualImport()` - Execute manual import command
 
 ### Improved
 - **Code quality and maintainability**

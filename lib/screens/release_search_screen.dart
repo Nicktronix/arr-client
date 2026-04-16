@@ -370,6 +370,7 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     final List<dynamic>? rejections = release['rejections'];
     final bool isRejected = rejections != null && rejections.isNotEmpty;
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final bool hasUnknownMatch = _hasUnknownMatch(release);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
@@ -385,20 +386,44 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (hasUnknownMatch) ...[
+                    const SizedBox(width: 8),
+                    Tooltip(
+                      message: 'May require manual import',
+                      child: Icon(
+                        Icons.help_outline,
+                        size: 18,
+                        color: Colors.orange[700],
+                      ),
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 12,
                 runSpacing: 4,
                 children: [
+                  // Show warning for unknown matches
+                  if (hasUnknownMatch)
+                    _buildInfoChip(
+                      Icons.warning_amber,
+                      'Unknown Match',
+                      Colors.orange,
+                    ),
                   // Show season/episode info for series releases
                   if (!_isMovie) ...[
                     if (release['mappedEpisodeInfo'] != null &&
@@ -494,6 +519,18 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 
+  bool _hasUnknownMatch(Map<String, dynamic> release) {
+    if (_isMovie) {
+      // For movies, check if mappedMovieId is missing or 0
+      return release['mappedMovieId'] == null || release['mappedMovieId'] == 0;
+    } else {
+      // For series, check if mappedEpisodeInfo is missing or empty (excluding season packs)
+      return (release['mappedEpisodeInfo'] == null ||
+              (release['mappedEpisodeInfo'] as List).isEmpty) &&
+          release['fullSeason'] != true;
+    }
+  }
+
   Future<void> _showReleaseDetails(Map<String, dynamic> release) async {
     final String title = release['title'] ?? 'Unknown';
     final String quality = release['quality']?['quality']?['name'] ?? 'Unknown';
@@ -512,6 +549,20 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     final List<dynamic>? languages = release['languages'];
     final List<dynamic>? customFormats = release['customFormats'];
 
+    // Check if release has series/movie matching issues
+    final bool hasUnknownSeries = !_isMovie && _hasUnknownMatch(release);
+    final bool hasUnknownMovie = _isMovie && _hasUnknownMatch(release);
+    final bool hasMatchingIssues =
+        hasUnknownSeries ||
+        hasUnknownMovie ||
+        (rejections?.any((r) {
+              final reason = r is Map ? (r['reason'] ?? '') : r.toString();
+              return reason.toLowerCase().contains('unknown') ||
+                  reason.toLowerCase().contains('series') ||
+                  reason.toLowerCase().contains('movie');
+            }) ??
+            false);
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -523,6 +574,53 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
             children: [
               Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 16),
+              // Warning for matching issues
+              if (hasMatchingIssues) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.1),
+                    border: Border.all(color: Colors.orange),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.warning_amber,
+                        color: Colors.orange[800],
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              hasUnknownSeries
+                                  ? 'Unknown Series Match'
+                                  : hasUnknownMovie
+                                  ? 'Unknown Movie Match'
+                                  : 'Matching Issues Detected',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange[800],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'This release may require manual import. After downloading, '
+                              'check the Queue screen and use Manual Import if needed.',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               // Common fields (both series and movies)
               _buildDetailRow('Quality', quality),
               if (releaseGroup != null && releaseGroup.isNotEmpty)
@@ -626,7 +724,7 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     );
 
     if (confirmed == true && mounted) {
-      _downloadRelease(release);
+      await _downloadRelease(release);
     }
   }
 
@@ -714,8 +812,6 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        // Go back
-        Navigator.pop(context, true); // Return true to indicate refresh needed
       }
     } catch (e) {
       if (mounted) {
