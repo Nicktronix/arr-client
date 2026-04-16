@@ -194,7 +194,6 @@ class _InstanceListTabState extends State<_InstanceListTab> {
         await widget.instanceManager.deleteRadarrInstance(instance.id);
       }
 
-      await _appState.reloadInstances();
       await _loadInstances();
 
       if (mounted) {
