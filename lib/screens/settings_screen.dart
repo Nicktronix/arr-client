@@ -76,7 +76,14 @@ class _InstanceListTabState extends State<_InstanceListTab> {
   @override
   void initState() {
     super.initState();
+    _appState.addListener(_loadInstances);
     _loadInstances();
+  }
+
+  @override
+  void dispose() {
+    _appState.removeListener(_loadInstances);
+    super.dispose();
   }
 
   Future<void> _loadInstances() async {
@@ -208,7 +215,6 @@ class _InstanceListTabState extends State<_InstanceListTab> {
         serviceType: widget.serviceType,
         appState: _appState,
         instance: instance,
-        onSaved: _loadInstances,
       ),
     );
   }
@@ -341,13 +347,11 @@ class _InstanceFormDialog extends StatefulWidget {
   final String serviceType;
   final AppStateManager appState;
   final ServiceInstance? instance;
-  final VoidCallback onSaved;
 
   const _InstanceFormDialog({
     required this.serviceType,
     required this.appState,
     this.instance,
-    required this.onSaved,
   });
 
   @override
@@ -528,7 +532,6 @@ class _InstanceFormDialogState extends State<_InstanceFormDialog> {
 
       if (mounted) {
         Navigator.pop(context);
-        widget.onSaved();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
