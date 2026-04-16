@@ -102,9 +102,13 @@ Services auto-detect instance changes — no manual coordination needed. Do NOT 
 
 ---
 
-## Legacy three-state pattern (non-cached screens)
+## Three-state pattern (dialogs, search, and detail screens)
 
-For search/detail screens that don't use CachedDataLoader:
+Use this for screens that don't fit `CachedDataLoader`: dialogs, search screens, manual import, release search, any screen where pull-to-refresh doesn't make sense. `CachedDataLoader` is for top-level list screens only.
+
+```dart
+// Do NOT use CachedDataLoader for dialogs or screens without pull-to-refresh
+```
 
 ```dart
 bool _isLoading = true;

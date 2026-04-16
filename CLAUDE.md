@@ -83,7 +83,7 @@ Singleton API clients that listen to `AppStateManager` and auto-reset their `Api
 
 ## Common pitfalls
 
-1. Use `CachedDataLoader` for data screens — don't implement manual loading states
+1. Use `CachedDataLoader` for top-level list screens only — dialogs, search screens, and detail screens use the three-state pattern directly (see `architecture.md`). Don't force `CachedDataLoader` onto screens that don't have pull-to-refresh
 2. Never call `InstanceManager` CRUD directly — all instance add/update/delete goes through `AppStateManager`
 3. Cache keys must be globally unique (instance suffix is the same per service, two screens with the same base key collide)
 4. `RefreshIndicator` requires a scrollable child (ListView, CustomScrollView, etc.)
