@@ -121,11 +121,10 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
         _episode!['monitored'] = !currentMonitored;
       });
 
-      // Update via API (Sonarr v3 requires seriesId to fetch full episode first)
-      await _sonarr.updateEpisode(widget.episodeId, {
-        'seriesId': widget.seriesId,
-        'monitored': !currentMonitored,
-      });
+      await _sonarr.setEpisodesMonitored(
+        [widget.episodeId],
+        monitored: !currentMonitored,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

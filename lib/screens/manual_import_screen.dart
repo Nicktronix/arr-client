@@ -104,30 +104,45 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
     );
 
     try {
-      final imports = _selectedIndices
-          .map((i) => _importCandidates[i] as Map<String, dynamic>)
-          .toList();
+      final imports = _selectedIndices.map((i) {
+        final candidate = _importCandidates[i] as Map<String, dynamic>;
 
-      // Ensure required fields are present for each import
-      for (var import in imports) {
-        // Convert episodes array to episodeIds array if needed
-        if (import['episodes'] != null && import['episodeIds'] == null) {
-          final episodes = import['episodes'] as List;
-          import['episodeIds'] = episodes.map((ep) => ep['id']).toList();
-        }
+        if (widget.source == 'sonarr') {
+          // Build episodeIds from episodes list if not already present
+          List<int> episodeIds = [];
+          if (candidate['episodeIds'] != null) {
+            episodeIds = (candidate['episodeIds'] as List)
+                .map((id) => id as int)
+                .toList();
+          } else if (candidate['episodes'] != null) {
+            episodeIds = (candidate['episodes'] as List)
+                .map((ep) => ep['id'] as int)
+                .toList();
+          }
 
-        // Ensure seriesId is present (from series object)
-        if (import['seriesId'] == null && import['series'] != null) {
-          import['seriesId'] = import['series']['id'];
+          return <String, dynamic>{
+            'path': candidate['path'],
+            'seriesId': candidate['seriesId'] ?? candidate['series']?['id'],
+            'episodeIds': episodeIds,
+            'quality': candidate['quality'],
+            'languages': candidate['languages'] ?? [],
+            'releaseGroup': candidate['releaseGroup'] ?? '',
+            'downloadId': widget.downloadId,
+            'indexerFlags': candidate['indexerFlags'] ?? 0,
+            'releaseType': candidate['releaseType'] ?? 'unknown',
+          };
+        } else {
+          return <String, dynamic>{
+            'path': candidate['path'],
+            'movieId': candidate['movieId'] ?? candidate['movie']?['id'],
+            'quality': candidate['quality'],
+            'languages': candidate['languages'] ?? [],
+            'releaseGroup': candidate['releaseGroup'] ?? '',
+            'downloadId': widget.downloadId,
+            'indexerFlags': candidate['indexerFlags'] ?? 0,
+          };
         }
-
-        // Ensure movieId is present (from movie object)
-        if (widget.source == 'radarr' &&
-            import['movieId'] == null &&
-            import['movie'] != null) {
-          import['movieId'] = import['movie']['id'];
-        }
-      }
+      }).toList();
 
       if (widget.source == 'sonarr') {
         await _sonarr.performManualImport(imports);

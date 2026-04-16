@@ -7,17 +7,26 @@ class ApiClient {
   final String apiKey;
   final String? basicAuthUsername;
   final String? basicAuthPassword;
+  final String apiVersion;
 
-  // HTTP client with connection pooling and timeout
-  static final http.Client _httpClient = http.Client();
   static const Duration _timeout = Duration(seconds: 30);
+  static const int _maxRetries = 2;
+
+  // Instance-level client — closing it cancels in-flight requests (e.g. on instance switch)
+  final http.Client _httpClient = http.Client();
 
   ApiClient({
     required this.baseUrl,
     required this.apiKey,
     this.basicAuthUsername,
     this.basicAuthPassword,
+    this.apiVersion = 'v3',
   });
+
+  /// Release resources. Called by services when the active instance changes.
+  void close() {
+    _httpClient.close();
+  }
 
   Map<String, String> get _headers {
     final headers = {'X-Api-Key': apiKey, 'Content-Type': 'application/json'};
@@ -32,23 +41,42 @@ class ApiClient {
     return headers;
   }
 
+  String _url(String endpoint) => '$baseUrl/api/$apiVersion$endpoint';
+
+  /// Execute [request] with up to [_maxRetries] retries on connection errors.
+  /// Timeouts and HTTP errors are not retried — they either indicate a slow
+  /// server (retrying wastes time) or a client mistake (retrying won't help).
+  Future<dynamic> _withRetry(
+    Future<http.Response> Function() request,
+  ) async {
+    int attempt = 0;
+    while (true) {
+      try {
+        final response = await request();
+        return _handleResponse(response);
+      } on ApiException {
+        rethrow;
+      } on TimeoutException {
+        throw ApiException('Request timed out - please try again');
+      } on http.ClientException catch (e) {
+        if (attempt >= _maxRetries) {
+          throw ApiException('Connection error: ${_sanitizeMessage(e.message)}');
+        }
+        await Future.delayed(Duration(seconds: attempt + 1));
+        attempt++;
+      } catch (e) {
+        throw ApiException('Network error: ${_sanitizeMessage(e.toString())}');
+      }
+    }
+  }
+
   /// Make a GET request to the API
   Future<dynamic> get(String endpoint, {Duration? timeout}) async {
-    final uri = Uri.parse('$baseUrl/api/v3$endpoint');
-
-    try {
-      final response = await _httpClient
-          .get(uri, headers: _headers)
-          .timeout(timeout ?? _timeout);
-
-      return _handleResponse(response);
-    } on TimeoutException {
-      throw ApiException('Request timed out - please try again');
-    } on http.ClientException catch (e) {
-      throw ApiException('Connection error: ${_sanitizeMessage(e.message)}');
-    } catch (e) {
-      throw ApiException('Network error: ${_sanitizeMessage(e.toString())}');
-    }
+    return _withRetry(
+      () => _httpClient
+          .get(Uri.parse(_url(endpoint)), headers: _headers)
+          .timeout(timeout ?? _timeout),
+    );
   }
 
   /// Make a POST request to the API
@@ -57,118 +85,100 @@ class ApiClient {
     Map<String, dynamic> data, {
     Duration? timeout,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/v3$endpoint');
-
-    try {
-      final response = await _httpClient
-          .post(uri, headers: _headers, body: json.encode(data))
-          .timeout(timeout ?? _timeout);
-
-      return _handleResponse(response);
-    } on http.ClientException catch (e) {
-      throw ApiException('Connection error: ${_sanitizeMessage(e.message)}');
-    } catch (e) {
-      throw ApiException('Network error: ${_sanitizeMessage(e.toString())}');
-    }
+    return _withRetry(
+      () => _httpClient
+          .post(
+            Uri.parse(_url(endpoint)),
+            headers: _headers,
+            body: json.encode(data),
+          )
+          .timeout(timeout ?? _timeout),
+    );
   }
 
   /// Make a PUT request to the API
   Future<dynamic> put(String endpoint, Map<String, dynamic> data) async {
-    final uri = Uri.parse('$baseUrl/api/v3$endpoint');
-
-    try {
-      final response = await _httpClient
-          .put(uri, headers: _headers, body: json.encode(data))
-          .timeout(_timeout);
-
-      return _handleResponse(response);
-    } on http.ClientException catch (e) {
-      throw ApiException('Connection error: ${_sanitizeMessage(e.message)}');
-    } catch (e) {
-      throw ApiException('Network error: ${_sanitizeMessage(e.toString())}');
-    }
+    return _withRetry(
+      () => _httpClient
+          .put(
+            Uri.parse(_url(endpoint)),
+            headers: _headers,
+            body: json.encode(data),
+          )
+          .timeout(_timeout),
+    );
   }
 
-  /// Make a PUT request with a list to the API
+  /// Make a PUT request with a list body to the API
   Future<dynamic> putList(String endpoint, List<dynamic> data) async {
-    final uri = Uri.parse('$baseUrl/api/v3$endpoint');
-
-    try {
-      final response = await _httpClient
-          .put(uri, headers: _headers, body: json.encode(data))
-          .timeout(_timeout);
-
-      return _handleResponse(response);
-    } on http.ClientException catch (e) {
-      throw ApiException('Connection error: ${_sanitizeMessage(e.message)}');
-    } catch (e) {
-      throw ApiException('Network error: ${_sanitizeMessage(e.toString())}');
-    }
+    return _withRetry(
+      () => _httpClient
+          .put(
+            Uri.parse(_url(endpoint)),
+            headers: _headers,
+            body: json.encode(data),
+          )
+          .timeout(_timeout),
+    );
   }
 
   /// Make a DELETE request to the API
   Future<dynamic> delete(String endpoint) async {
-    final uri = Uri.parse('$baseUrl/api/v3$endpoint');
-
-    try {
-      final response = await _httpClient
-          .delete(uri, headers: _headers)
-          .timeout(_timeout);
-
-      return _handleResponse(response);
-    } on http.ClientException catch (e) {
-      throw ApiException('Connection error: ${_sanitizeMessage(e.message)}');
-    } catch (e) {
-      throw ApiException('Network error: ${_sanitizeMessage(e.toString())}');
-    }
+    return _withRetry(
+      () => _httpClient
+          .delete(Uri.parse(_url(endpoint)), headers: _headers)
+          .timeout(_timeout),
+    );
   }
 
-  /// Handle API response
   dynamic _handleResponse(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      if (response.body.isEmpty) {
-        return null;
-      }
+      if (response.body.isEmpty) return null;
       return json.decode(response.body);
     }
 
-    // Parse error message from response body if available
-    String errorMessage = 'Request failed';
+    // Default to status-based message so empty bodies still produce useful text
+    String errorMessage = _getStatusMessage(response.statusCode);
 
     try {
       if (response.body.isNotEmpty) {
         final errorBody = json.decode(response.body);
 
-        // Try common error message fields
         if (errorBody is Map) {
           errorMessage =
               errorBody['message'] ??
               errorBody['error'] ??
               errorBody['errorMessage'] ??
               errorMessage;
+        } else if (errorBody is List && errorBody.isNotEmpty) {
+          final first = errorBody.first;
+          if (first is Map) {
+            errorMessage =
+                first['errorMessage'] ??
+                first['message'] ??
+                first['error'] ??
+                errorMessage;
+          }
         }
       }
-    } catch (e) {
-      // If parsing fails, use status-based message
-      errorMessage = _getStatusMessage(response.statusCode);
+    } catch (_) {
+      // JSON parse failed — status-based default already set
     }
 
     if (response.statusCode == 401) {
       throw ApiException('Unauthorized - check your API key');
-    } else if (response.statusCode == 404) {
-      throw ApiException('Not found');
     } else if (response.statusCode == 403) {
       throw ApiException('Access denied');
+    } else if (response.statusCode == 404) {
+      throw ApiException('Not found');
     } else if (response.statusCode >= 500) {
       throw ApiException('Server error - please try again later');
     } else {
-      throw ApiException(errorMessage);
+      throw ApiException('$errorMessage (HTTP ${response.statusCode})');
     }
   }
 
-  /// Sanitize error messages to remove credentials and sensitive data
   String _sanitizeMessage(String message) {
-    // Remove anything that looks like credentials from URLs
     return message
         .replaceAll(RegExp(r'://[^@]+@'), '://***@')
         .replaceAll(

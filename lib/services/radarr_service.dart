@@ -41,6 +41,7 @@ class RadarrService {
 
   /// Reset the API client (called automatically when instance changes)
   void reset() {
+    _client?.close();
     _client = null;
   }
 
@@ -88,7 +89,7 @@ class RadarrService {
   /// Get queue (current downloads)
   Future<Map<String, dynamic>> getQueue() async {
     final client = await _api;
-    return await client.get('/queue');
+    return await client.get('/queue?pageSize=500&sortKey=timeleft&sortDirection=ascending');
   }
 
   /// Remove item from queue
@@ -116,7 +117,7 @@ class RadarrService {
     Map<String, dynamic> movieData,
   ) async {
     final client = await _api;
-    return await client.put('/movie', movieData);
+    return await client.put('/movie/${movieData['id']}', movieData);
   }
 
   /// Delete movie
@@ -225,10 +226,14 @@ class RadarrService {
     );
   }
 
-  /// Import selected manual import items
+  /// Import selected manual import items via the ManualImport command
   Future<void> performManualImport(List<Map<String, dynamic>> imports) async {
     final client = await _api;
-    await client.putList('/manualimport', imports);
+    await client.post('/command', {
+      'name': 'ManualImport',
+      'importMode': 'move',
+      'files': imports,
+    });
   }
 
   /// Get available languages

@@ -93,6 +93,11 @@ Singleton API clients that listen to `AppStateManager` and auto-reset their `Api
 8. `saveFile()` on mobile requires the `bytes` parameter; desktop uses the returned path
 9. `TextEditingController` must be declared as a field, initialized in `initState`, and disposed in `dispose()` — never created inline in `build()` (memory leak, cursor position lost on every rebuild)
 10. For `PUT` endpoints that accept a list body, use `ApiClient.putList()` — `put()` expects a `Map`, not a `List`
+11. Sonarr/Radarr `PUT /series` and `PUT /movie` require the ID in the URL — use `PUT /series/{id}` and `PUT /movie/{id}`. Omitting the ID returns 405.
+12. Manual import is **not** `PUT` or `POST /manualimport` — that endpoint only reprocesses candidates. Actual import is `POST /command` with `name: ManualImport`, `files: [...]`, `importMode: move`.
+13. `GET /queue` defaults to page size 10. Always pass `pageSize` — current services use 500. Without it the queue silently truncates.
+14. `ApiClient` catch blocks must have `on ApiException { rethrow; }` before the generic `catch (e)` — otherwise HTTP errors thrown by `_handleResponse` get double-wrapped as "Network error: ...".
+15. Episode monitoring uses `PUT /episode/monitor` with `{ episodeIds: [...], monitored: bool }` — do not fetch the full episode object and PUT it back just to toggle a boolean.
 
 ---
 

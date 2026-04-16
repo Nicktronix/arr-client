@@ -41,6 +41,7 @@ class SonarrService {
 
   /// Reset the API client (called automatically when instance changes)
   void reset() {
+    _client?.close();
     _client = null;
   }
 
@@ -88,7 +89,7 @@ class SonarrService {
   /// Get queue (current downloads)
   Future<Map<String, dynamic>> getQueue() async {
     final client = await _api;
-    return await client.get('/queue');
+    return await client.get('/queue?pageSize=500&sortKey=timeleft&sortDirection=ascending');
   }
 
   /// Remove item from queue
@@ -118,7 +119,7 @@ class SonarrService {
     Map<String, dynamic> seriesData,
   ) async {
     final client = await _api;
-    return await client.put('/series', seriesData);
+    return await client.put('/series/${seriesData['id']}', seriesData);
   }
 
   /// Delete series
@@ -151,29 +152,16 @@ class SonarrService {
     return await client.get('/episodeFile?seriesId=$seriesId');
   }
 
-  /// Update an episode (e.g., toggle monitoring)
-  /// Sonarr v3 requires sending the full episode object, not partial updates
-  Future<Map<String, dynamic>> updateEpisode(
-    int episodeId,
-    Map<String, dynamic> updates,
-  ) async {
+  /// Set monitored state for one or more episodes
+  Future<void> setEpisodesMonitored(
+    List<int> episodeIds, {
+    required bool monitored,
+  }) async {
     final client = await _api;
-
-    // Fetch current episode data
-    final episodes = await client.get(
-      '/episode?seriesId=${updates['seriesId']}',
-    );
-    final episode = (episodes as List).firstWhere(
-      (ep) => ep['id'] == episodeId,
-      orElse: () => throw ApiException('Episode not found'),
-    );
-
-    // Merge updates into full episode object
-    final updatedEpisode = Map<String, dynamic>.from(episode);
-    updatedEpisode.addAll(updates);
-
-    // Send full object to API
-    return await client.put('/episode/$episodeId', updatedEpisode);
+    await client.put('/episode/monitor', {
+      'episodeIds': episodeIds,
+      'monitored': monitored,
+    });
   }
 
   /// Search for a specific episode
@@ -276,10 +264,14 @@ class SonarrService {
     );
   }
 
-  /// Import selected manual import items
+  /// Import selected manual import items via the ManualImport command
   Future<void> performManualImport(List<Map<String, dynamic>> imports) async {
     final client = await _api;
-    await client.putList('/manualimport', imports);
+    await client.post('/command', {
+      'name': 'ManualImport',
+      'importMode': 'move',
+      'files': imports,
+    });
   }
 
   /// Get available languages
