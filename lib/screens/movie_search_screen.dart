@@ -3,6 +3,7 @@ import '../services/radarr_service.dart';
 import '../services/app_state_manager.dart';
 import '../config/app_config.dart';
 import '../utils/error_formatter.dart';
+import '../di/injection.dart';
 
 class MovieSearchScreen extends StatefulWidget {
   const MovieSearchScreen({super.key});
@@ -12,7 +13,7 @@ class MovieSearchScreen extends StatefulWidget {
 }
 
 class _MovieSearchScreenState extends State<MovieSearchScreen> {
-  final RadarrService _radarr = RadarrService();
+  final RadarrService _radarr = getIt<RadarrService>();
   final TextEditingController _searchController = TextEditingController();
 
   List<dynamic> _searchResults = [];
@@ -27,12 +28,12 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
     super.initState();
     _instanceIdOnLoad = AppConfig.activeRadarrInstanceId;
     _loadExistingMovies();
-    AppStateManager().addListener(_onInstanceChanged);
+    getIt<AppStateManager>().addListener(_onInstanceChanged);
   }
 
   @override
   void dispose() {
-    AppStateManager().removeListener(_onInstanceChanged);
+    getIt<AppStateManager>().removeListener(_onInstanceChanged);
     _searchController.dispose();
     super.dispose();
   }

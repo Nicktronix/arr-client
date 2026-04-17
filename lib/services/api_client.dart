@@ -12,8 +12,7 @@ class ApiClient {
   static const Duration _timeout = Duration(seconds: 30);
   static const int _maxRetries = 2;
 
-  // Instance-level client — closing it cancels in-flight requests (e.g. on instance switch)
-  final http.Client _httpClient = http.Client();
+  final http.Client _httpClient;
 
   ApiClient({
     required this.baseUrl,
@@ -21,7 +20,8 @@ class ApiClient {
     this.basicAuthUsername,
     this.basicAuthPassword,
     this.apiVersion = 'v3',
-  });
+    http.Client? httpClient,
+  }) : _httpClient = httpClient ?? http.Client();
 
   /// Release resources. Called by services when the active instance changes.
   void close() {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/sonarr_service.dart';
 import '../services/radarr_service.dart';
 import '../utils/error_formatter.dart';
+import '../di/injection.dart';
 
 class ManualImportScreen extends StatefulWidget {
   final String source; // 'sonarr' or 'radarr'
@@ -20,8 +21,8 @@ class ManualImportScreen extends StatefulWidget {
 }
 
 class _ManualImportScreenState extends State<ManualImportScreen> {
-  final SonarrService _sonarr = SonarrService();
-  final RadarrService _radarr = RadarrService();
+  final SonarrService _sonarr = getIt<SonarrService>();
+  final RadarrService _radarr = getIt<RadarrService>();
 
   bool _isLoading = true;
   String? _error;

@@ -1,21 +1,15 @@
 import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
-import 'services/instance_manager.dart';
 import 'services/app_state_manager.dart';
 import 'services/biometric_service.dart';
+import 'di/injection.dart';
 
 Future<void> main() async {
   // Ensure Flutter is initialized
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize instance manager
-  await InstanceManager().init();
-
-  // Initialize app state manager (loads active instances)
-  await AppStateManager().initialize();
-
-  // Initialize biometric service
-  await BiometricService().init();
+  await configureDependencies();
+  await getIt<AppStateManager>().initialize();
 
   runApp(const MyApp());
 }
@@ -28,7 +22,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  final BiometricService _biometricService = BiometricService();
+  final BiometricService _biometricService = getIt<BiometricService>();
   bool _isAuthenticated = false;
   bool _isAuthenticating = false;
 

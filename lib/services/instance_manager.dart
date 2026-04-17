@@ -1,36 +1,20 @@
 import 'dart:convert';
+import 'package:injectable/injectable.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/service_instance.dart';
 
+@lazySingleton
 class InstanceManager {
-  // Keys for non-sensitive data (instance list structure without credentials)
   static const String _sonarrInstancesKey = 'sonarr_instances';
   static const String _radarrInstancesKey = 'radarr_instances';
   static const String _activeSonarrKey = 'active_sonarr_id';
   static const String _activeRadarrKey = 'active_radarr_id';
 
-  // Singleton
-  static final InstanceManager _instance = InstanceManager._internal();
-  factory InstanceManager() => _instance;
-  InstanceManager._internal();
+  final SharedPreferences _prefs;
+  final FlutterSecureStorage _secureStorage;
 
-  SharedPreferences? _prefs;
-  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
-    aOptions: AndroidOptions(),
-    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
-  );
-
-  Future<void> init() async {
-    _prefs = await SharedPreferences.getInstance();
-  }
-
-  SharedPreferences get _preferences {
-    if (_prefs == null) {
-      throw Exception('InstanceManager not initialized. Call init() first.');
-    }
-    return _prefs!;
-  }
+  InstanceManager(this._prefs, this._secureStorage);
 
   /// Save sensitive instance credentials to secure storage
   Future<void> _saveInstanceCredentials(
@@ -94,7 +78,7 @@ class InstanceManager {
     final key = serviceType == 'sonarr'
         ? _sonarrInstancesKey
         : _radarrInstancesKey;
-    final jsonString = _preferences.getString(key);
+    final jsonString = _prefs.getString(key);
     if (jsonString == null) return [];
 
     final List<dynamic> jsonList = jsonDecode(jsonString);
@@ -113,7 +97,7 @@ class InstanceManager {
     final key = serviceType == 'sonarr'
         ? _sonarrInstancesKey
         : _radarrInstancesKey;
-    final jsonString = _preferences.getString(key);
+    final jsonString = _prefs.getString(key);
     if (jsonString == null) return [];
     return List<Map<String, dynamic>>.from(jsonDecode(jsonString));
   }
@@ -131,7 +115,7 @@ class InstanceManager {
     final jsonList = instances
         .map((i) => {'id': i.id, 'name': i.name, 'baseUrl': i.baseUrl})
         .toList();
-    await _preferences.setString(_sonarrInstancesKey, jsonEncode(jsonList));
+    await _prefs.setString(_sonarrInstancesKey, jsonEncode(jsonList));
 
     // Save sensitive credentials to secure storage
     for (var instance in instances) {
@@ -165,7 +149,7 @@ class InstanceManager {
     await saveSonarrInstances(instances);
     await _deleteInstanceCredentials(id, 'sonarr');
     if (getActiveSonarrId() == id) {
-      await _preferences.remove(_activeSonarrKey);
+      await _prefs.remove(_activeSonarrKey);
     }
   }
 
@@ -183,7 +167,7 @@ class InstanceManager {
     final jsonList = instances
         .map((i) => {'id': i.id, 'name': i.name, 'baseUrl': i.baseUrl})
         .toList();
-    await _preferences.setString(_radarrInstancesKey, jsonEncode(jsonList));
+    await _prefs.setString(_radarrInstancesKey, jsonEncode(jsonList));
 
     // Save sensitive credentials to secure storage
     for (var instance in instances) {
@@ -217,25 +201,25 @@ class InstanceManager {
     await saveRadarrInstances(instances);
     await _deleteInstanceCredentials(id, 'radarr');
     if (getActiveRadarrId() == id) {
-      await _preferences.remove(_activeRadarrKey);
+      await _prefs.remove(_activeRadarrKey);
     }
   }
 
   // Active Instance IDs
   String? getActiveSonarrId() {
-    return _preferences.getString(_activeSonarrKey);
+    return _prefs.getString(_activeSonarrKey);
   }
 
   Future<void> setActiveSonarrId(String id) async {
-    await _preferences.setString(_activeSonarrKey, id);
+    await _prefs.setString(_activeSonarrKey, id);
   }
 
   String? getActiveRadarrId() {
-    return _preferences.getString(_activeRadarrKey);
+    return _prefs.getString(_activeRadarrKey);
   }
 
   Future<void> setActiveRadarrId(String id) async {
-    await _preferences.setString(_activeRadarrKey, id);
+    await _prefs.setString(_activeRadarrKey, id);
   }
 
   // Get Active Instances

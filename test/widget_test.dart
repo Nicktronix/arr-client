@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:arr_client/services/instance_manager.dart';
+import 'package:arr_client/di/injection.dart';
 import 'package:arr_client/services/app_state_manager.dart';
 import 'package:arr_client/services/cache_manager.dart';
 import 'package:arr_client/screens/home_screen.dart';
@@ -15,10 +15,10 @@ void main() {
 
   group('Home Screen Widget Tests', () {
     setUp(() async {
-      // Reset state before each test
       SharedPreferences.setMockInitialValues({});
-      await InstanceManager().init();
-      await AppStateManager().initialize();
+      await getIt.reset();
+      await configureDependencies();
+      await getIt<AppStateManager>().initialize();
     });
 
     testWidgets('displays all navigation tabs and icons', (
@@ -287,9 +287,10 @@ void main() {
       SharedPreferences.setMockInitialValues({
         'active_sonarr_id': testInstanceId,
       });
-      CacheManager().clearAll();
-      await InstanceManager().init();
-      await AppStateManager().initialize();
+      await getIt.reset();
+      await configureDependencies();
+      await getIt<AppStateManager>().initialize();
+      getIt<CacheManager>().clearAll();
       shouldFetchThrow = false;
       fetchResult = ['item1', 'item2'];
     });
@@ -307,8 +308,8 @@ void main() {
       WidgetTester tester,
     ) async {
       // Seed stale cache
-      AppStateManager().setSonarrCache(testCacheKey, ['cached_item']);
-      CacheManager().backdateTimestamp(
+      getIt<AppStateManager>().setSonarrCache(testCacheKey, ['cached_item']);
+      getIt<CacheManager>().backdateTimestamp(
         fullCacheKey,
         const Duration(minutes: 10),
       );
@@ -328,8 +329,8 @@ void main() {
       WidgetTester tester,
     ) async {
       // Seed stale cache
-      AppStateManager().setSonarrCache(testCacheKey, ['cached_item']);
-      CacheManager().backdateTimestamp(
+      getIt<AppStateManager>().setSonarrCache(testCacheKey, ['cached_item']);
+      getIt<CacheManager>().backdateTimestamp(
         fullCacheKey,
         const Duration(minutes: 10),
       );

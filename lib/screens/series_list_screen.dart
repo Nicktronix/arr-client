@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/sonarr_service.dart';
 import '../utils/cached_data_loader.dart';
 import '../utils/error_formatter.dart';
+import '../di/injection.dart';
 import 'series_detail_screen.dart';
 
 class SeriesListScreen extends StatefulWidget {
@@ -13,7 +14,7 @@ class SeriesListScreen extends StatefulWidget {
 
 class _SeriesListScreenState extends State<SeriesListScreen>
     with CachedDataLoader {
-  final SonarrService _sonarr = SonarrService();
+  final SonarrService _sonarr = getIt<SonarrService>();
   final TextEditingController _searchController = TextEditingController();
 
   List<dynamic> _series = [];

@@ -3,6 +3,7 @@ import '../services/sonarr_service.dart';
 import '../services/radarr_service.dart';
 import '../services/app_state_manager.dart';
 import '../utils/error_formatter.dart';
+import '../di/injection.dart';
 import '../config/app_config.dart';
 
 class SystemStatusScreen extends StatefulWidget {
@@ -13,9 +14,9 @@ class SystemStatusScreen extends StatefulWidget {
 }
 
 class _SystemStatusScreenState extends State<SystemStatusScreen> {
-  final SonarrService _sonarr = SonarrService();
-  final RadarrService _radarr = RadarrService();
-  final AppStateManager _appState = AppStateManager();
+  final SonarrService _sonarr = getIt<SonarrService>();
+  final RadarrService _radarr = getIt<RadarrService>();
+  final AppStateManager _appState = getIt<AppStateManager>();
 
   bool _isLoadingSonarr = false;
   bool _isLoadingRadarr = false;

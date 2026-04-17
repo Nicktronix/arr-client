@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/radarr_service.dart';
 import '../services/app_state_manager.dart';
 import '../config/app_config.dart';
+import '../di/injection.dart';
 import 'release_search_screen.dart';
 import '../utils/error_formatter.dart';
 
@@ -20,7 +21,7 @@ class MovieDetailScreen extends StatefulWidget {
 }
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
-  final RadarrService _radarr = RadarrService();
+  final RadarrService _radarr = getIt<RadarrService>();
   Map<String, dynamic>? _movie;
   bool _isLoading = true;
   String? _error;
@@ -31,12 +32,12 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     super.initState();
     _instanceIdOnLoad = AppConfig.activeRadarrInstanceId;
     _loadMovieDetails();
-    AppStateManager().addListener(_onInstanceChanged);
+    getIt<AppStateManager>().addListener(_onInstanceChanged);
   }
 
   @override
   void dispose() {
-    AppStateManager().removeListener(_onInstanceChanged);
+    getIt<AppStateManager>().removeListener(_onInstanceChanged);
     super.dispose();
   }
 

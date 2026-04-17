@@ -3,6 +3,7 @@ import '../services/sonarr_service.dart';
 import '../services/app_state_manager.dart';
 import '../config/app_config.dart';
 import '../utils/error_formatter.dart';
+import '../di/injection.dart';
 
 class SeriesSearchScreen extends StatefulWidget {
   const SeriesSearchScreen({super.key});
@@ -12,7 +13,7 @@ class SeriesSearchScreen extends StatefulWidget {
 }
 
 class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
-  final SonarrService _sonarr = SonarrService();
+  final SonarrService _sonarr = getIt<SonarrService>();
   final TextEditingController _searchController = TextEditingController();
 
   List<dynamic> _searchResults = [];
@@ -27,12 +28,12 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
     super.initState();
     _instanceIdOnLoad = AppConfig.activeSonarrInstanceId;
     _loadExistingSeries();
-    AppStateManager().addListener(_onInstanceChanged);
+    getIt<AppStateManager>().addListener(_onInstanceChanged);
   }
 
   @override
   void dispose() {
-    AppStateManager().removeListener(_onInstanceChanged);
+    getIt<AppStateManager>().removeListener(_onInstanceChanged);
     _searchController.dispose();
     super.dispose();
   }

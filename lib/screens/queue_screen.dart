@@ -4,6 +4,7 @@ import '../services/radarr_service.dart';
 import '../services/app_state_manager.dart';
 import '../utils/cached_data_loader.dart';
 import '../utils/error_formatter.dart';
+import '../di/injection.dart';
 import 'manual_import_screen.dart';
 
 class QueueScreen extends StatefulWidget {
@@ -16,9 +17,9 @@ class QueueScreen extends StatefulWidget {
 }
 
 class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
-  final SonarrService _sonarr = SonarrService();
-  final RadarrService _radarr = RadarrService();
-  final AppStateManager _appState = AppStateManager();
+  final SonarrService _sonarr = getIt<SonarrService>();
+  final RadarrService _radarr = getIt<RadarrService>();
+  final AppStateManager _appState = getIt<AppStateManager>();
 
   List<Map<String, dynamic>> _queueItems = [];
 

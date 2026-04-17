@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/radarr_service.dart';
 import '../utils/cached_data_loader.dart';
 import '../utils/error_formatter.dart';
+import '../di/injection.dart';
 import 'movie_detail_screen.dart';
 
 class MovieListScreen extends StatefulWidget {
@@ -13,7 +14,7 @@ class MovieListScreen extends StatefulWidget {
 
 class _MovieListScreenState extends State<MovieListScreen>
     with CachedDataLoader {
-  final RadarrService _radarr = RadarrService();
+  final RadarrService _radarr = getIt<RadarrService>();
   final TextEditingController _searchController = TextEditingController();
 
   List<dynamic> _movies = [];

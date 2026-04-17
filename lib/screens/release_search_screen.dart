@@ -4,6 +4,7 @@ import '../services/radarr_service.dart';
 import '../services/app_state_manager.dart';
 import '../config/app_config.dart';
 import '../utils/error_formatter.dart';
+import '../di/injection.dart';
 
 class ReleaseSearchScreen extends StatefulWidget {
   // Episode-specific (Sonarr)
@@ -33,8 +34,8 @@ class ReleaseSearchScreen extends StatefulWidget {
 }
 
 class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
-  final SonarrService _sonarr = SonarrService();
-  final RadarrService _radarr = RadarrService();
+  final SonarrService _sonarr = getIt<SonarrService>();
+  final RadarrService _radarr = getIt<RadarrService>();
 
   List<dynamic>? _releases;
   bool _isLoading = false;
@@ -59,12 +60,12 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     } else {
       _loadReleases();
     }
-    AppStateManager().addListener(_onInstanceChanged);
+    getIt<AppStateManager>().addListener(_onInstanceChanged);
   }
 
   @override
   void dispose() {
-    AppStateManager().removeListener(_onInstanceChanged);
+    getIt<AppStateManager>().removeListener(_onInstanceChanged);
     super.dispose();
   }
 

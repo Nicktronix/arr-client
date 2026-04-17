@@ -9,6 +9,7 @@ import 'settings_screen.dart';
 import 'calendar_screen.dart';
 import 'system_status_screen.dart';
 import '../services/app_state_manager.dart';
+import '../di/injection.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,7 +20,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
-  final AppStateManager _appState = AppStateManager();
+  final AppStateManager _appState = getIt<AppStateManager>();
 
   // Cache screen widgets to preserve state between tab switches
   late List<Widget> _cachedScreens;

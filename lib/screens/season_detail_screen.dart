@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/sonarr_service.dart';
 import '../services/app_state_manager.dart';
 import '../config/app_config.dart';
+import '../di/injection.dart';
 import 'release_search_screen.dart';
 import 'episode_detail_screen.dart';
 import '../utils/error_formatter.dart';
@@ -23,7 +24,7 @@ class SeasonDetailScreen extends StatefulWidget {
 }
 
 class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
-  final SonarrService _sonarr = SonarrService();
+  final SonarrService _sonarr = getIt<SonarrService>();
   List<dynamic> _episodes = [];
   bool _isLoading = true;
   String? _error;
@@ -34,12 +35,12 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
     super.initState();
     _instanceIdOnLoad = AppConfig.activeSonarrInstanceId;
     _loadSeasonData();
-    AppStateManager().addListener(_onInstanceChanged);
+    getIt<AppStateManager>().addListener(_onInstanceChanged);
   }
 
   @override
   void dispose() {
-    AppStateManager().removeListener(_onInstanceChanged);
+    getIt<AppStateManager>().removeListener(_onInstanceChanged);
     super.dispose();
   }
 

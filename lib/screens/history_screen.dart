@@ -5,6 +5,7 @@ import '../services/radarr_service.dart';
 import '../services/app_state_manager.dart';
 import '../utils/cached_data_loader.dart';
 import '../utils/error_formatter.dart';
+import '../di/injection.dart';
 
 class HistoryScreen extends StatefulWidget {
   final VoidCallback? onSettingsPressed;
@@ -16,9 +17,9 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
-  final SonarrService _sonarr = SonarrService();
-  final RadarrService _radarr = RadarrService();
-  final AppStateManager _appState = AppStateManager();
+  final SonarrService _sonarr = getIt<SonarrService>();
+  final RadarrService _radarr = getIt<RadarrService>();
+  final AppStateManager _appState = getIt<AppStateManager>();
 
   List<dynamic> _historyRecords = [];
   String _selectedService = 'sonarr'; // 'sonarr' or 'radarr'

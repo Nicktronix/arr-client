@@ -5,6 +5,7 @@ import '../services/radarr_service.dart';
 import '../services/app_state_manager.dart';
 import '../utils/error_formatter.dart';
 import '../config/app_config.dart';
+import '../di/injection.dart';
 import 'series_detail_screen.dart';
 import 'movie_detail_screen.dart';
 
@@ -17,9 +18,9 @@ class CalendarScreen extends StatefulWidget {
 
 class _CalendarScreenState extends State<CalendarScreen>
     with SingleTickerProviderStateMixin {
-  final SonarrService _sonarr = SonarrService();
-  final RadarrService _radarr = RadarrService();
-  final AppStateManager _appState = AppStateManager();
+  final SonarrService _sonarr = getIt<SonarrService>();
+  final RadarrService _radarr = getIt<RadarrService>();
+  final AppStateManager _appState = getIt<AppStateManager>();
 
   late TabController _tabController;
   List<dynamic> _sonarrCalendar = [];

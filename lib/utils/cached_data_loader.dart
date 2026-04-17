@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/app_state_manager.dart';
+import '../di/injection.dart';
 import 'error_formatter.dart';
 
 /// Standardized loading states for all screens
@@ -18,7 +19,7 @@ mixin CachedDataLoader<T extends StatefulWidget> on State<T> {
   String? _errorMessage;
   bool _isStaleData = false;
   String? _staleError;
-  final AppStateManager _appState = AppStateManager();
+  final AppStateManager _appState = getIt<AppStateManager>();
 
   LoadingState get loadingState => _loadingState;
   String? get errorMessage => _errorMessage;

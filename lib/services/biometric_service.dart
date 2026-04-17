@@ -1,22 +1,17 @@
+import 'package:injectable/injectable.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Service for managing biometric authentication
+@lazySingleton
 class BiometricService {
   static const String _biometricEnabledKey = 'biometric_enabled';
-  // Legacy key — stored bool (true = 5 min timeout, false = never). Read only for migration.
   static const String _biometricTimeoutLegacyKey = 'biometric_timeout_enabled';
   static const String _biometricTimeoutMinutesKey = 'biometric_timeout_minutes';
 
-  /// Sentinel value meaning "never re-authenticate after background".
   static const int timeoutNever = -1;
 
-  static final BiometricService _instance = BiometricService._internal();
-  factory BiometricService() => _instance;
-  BiometricService._internal();
-
-  final LocalAuthentication _localAuth = LocalAuthentication();
-  SharedPreferences? _prefs;
+  final LocalAuthentication _localAuth;
+  final SharedPreferences _prefs;
   DateTime? _lastAuthTime;
   // Tracks when the app was backgrounded. Null means the app has not been
   // backgrounded since last auth (or auth cleared it). needsReAuthentication
@@ -25,14 +20,7 @@ class BiometricService {
   // lifecycle event that fires when the biometric dialog dismisses.
   DateTime? _backgroundTime;
 
-  Future<void> init() async {
-    _prefs = await SharedPreferences.getInstance();
-  }
-
-  Future<SharedPreferences> get _preferences async {
-    _prefs ??= await SharedPreferences.getInstance();
-    return _prefs!;
-  }
+  BiometricService(this._localAuth, this._prefs);
 
   /// Check if device supports biometric authentication
   Future<bool> canCheckBiometrics() async {
@@ -67,14 +55,12 @@ class BiometricService {
 
   /// Check if biometric auth is enabled in settings
   Future<bool> isBiometricEnabled() async {
-    final prefs = await _preferences;
-    return prefs.getBool(_biometricEnabledKey) ?? false;
+    return _prefs.getBool(_biometricEnabledKey) ?? false;
   }
 
   /// Enable or disable biometric authentication
   Future<void> setBiometricEnabled(bool enabled) async {
-    final prefs = await _preferences;
-    await prefs.setBool(_biometricEnabledKey, enabled);
+    await _prefs.setBool(_biometricEnabledKey, enabled);
     if (enabled) {
       _lastAuthTime = DateTime.now();
       _backgroundTime = null;
@@ -89,19 +75,17 @@ class BiometricService {
   ///
   /// Migrates from the legacy bool key on first read.
   Future<int> getTimeoutMinutes() async {
-    final prefs = await _preferences;
-    if (prefs.containsKey(_biometricTimeoutMinutesKey)) {
-      return prefs.getInt(_biometricTimeoutMinutesKey) ?? 5;
+    if (_prefs.containsKey(_biometricTimeoutMinutesKey)) {
+      return _prefs.getInt(_biometricTimeoutMinutesKey) ?? 5;
     }
     // Migrate from legacy bool: true → 5 min, false → never
-    final legacyEnabled = prefs.getBool(_biometricTimeoutLegacyKey) ?? true;
+    final legacyEnabled = _prefs.getBool(_biometricTimeoutLegacyKey) ?? true;
     return legacyEnabled ? 5 : timeoutNever;
   }
 
   /// Set the re-authentication timeout. Use [timeoutNever] to disable.
   Future<void> setTimeoutMinutes(int minutes) async {
-    final prefs = await _preferences;
-    await prefs.setInt(_biometricTimeoutMinutesKey, minutes);
+    await _prefs.setInt(_biometricTimeoutMinutesKey, minutes);
   }
 
   /// Authenticate with biometrics.

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:encrypt/encrypt.dart' as encrypt_lib;
+import 'package:injectable/injectable.dart';
 import 'package:pointycastle/export.dart';
 import 'instance_manager.dart';
 import '../models/service_instance.dart';
@@ -99,13 +100,11 @@ encrypt_lib.Key _deriveKeySync(String password, Uint8List salt) {
 // BackupService class
 // ============================================================================
 
-/// Service for encrypting and exporting/importing instance configurations
+@lazySingleton
 class BackupService {
-  static final BackupService _instance = BackupService._internal();
-  factory BackupService() => _instance;
-  BackupService._internal();
+  final InstanceManager _instanceManager;
 
-  final InstanceManager _instanceManager = InstanceManager();
+  BackupService(this._instanceManager);
 
   /// Exports all instances to encrypted JSON bytes
   /// Returns the encrypted data as Uint8List

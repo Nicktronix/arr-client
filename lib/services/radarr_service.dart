@@ -1,14 +1,15 @@
+import 'package:http/http.dart' as http;
+import 'package:injectable/injectable.dart';
 import 'api_client.dart';
-import '../config/app_config.dart';
 import 'app_state_manager.dart';
 
+@lazySingleton
 class RadarrService {
-  // Singleton pattern
-  static final RadarrService _instance = RadarrService._internal();
-  factory RadarrService() => _instance;
-  RadarrService._internal() {
-    // Listen to instance changes and auto-reset
-    AppStateManager().addListener(_onInstanceChanged);
+  final AppStateManager _appStateManager;
+  final http.Client _httpClient;
+
+  RadarrService(this._appStateManager, this._httpClient) {
+    _appStateManager.addListener(_onInstanceChanged);
   }
 
   ApiClient? _client;
@@ -17,23 +18,22 @@ class RadarrService {
 
   Future<ApiClient> get _api async {
     if (_client == null) {
-      final baseUrl = AppConfig.radarrBaseUrl;
-      final apiKey = AppConfig.radarrApiKey;
+      final instance = _appStateManager.activeRadarrInstance;
+      final baseUrl = instance?.baseUrl ?? '';
+      final apiKey = instance?.apiKey ?? '';
 
-      // Validate configuration before creating client
       if (baseUrl.isEmpty || apiKey.isEmpty) {
         throw Exception(
           'Radarr instance not configured. Please add an instance in settings.',
         );
       }
 
-      final basicAuthUsername = AppConfig.radarrBasicAuthUsername;
-      final basicAuthPassword = AppConfig.radarrBasicAuthPassword;
       _client = ApiClient(
         baseUrl: baseUrl,
         apiKey: apiKey,
-        basicAuthUsername: basicAuthUsername,
-        basicAuthPassword: basicAuthPassword,
+        basicAuthUsername: instance?.basicAuthUsername,
+        basicAuthPassword: instance?.basicAuthPassword,
+        httpClient: _httpClient,
       );
     }
     return _client!;

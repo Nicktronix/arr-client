@@ -1,13 +1,8 @@
 import 'package:flutter/foundation.dart';
+import 'package:injectable/injectable.dart';
 
-/// Centralized cache manager for API responses
-/// Handles instance-specific caching with time-based invalidation and memory management
-/// WARNING: Only use for non-sensitive API responses. Never cache credentials or API keys.
+@lazySingleton
 class CacheManager {
-  static final CacheManager _instance = CacheManager._internal();
-  factory CacheManager() => _instance;
-  CacheManager._internal();
-
   final Map<String, dynamic> _cache = {};
   final Map<String, DateTime> _cacheTimestamps = {};
   final Map<String, int> _accessCount = {}; // Track access frequency for LRU

@@ -7,6 +7,7 @@ import '../services/api_client.dart';
 import '../services/biometric_service.dart';
 import '../services/backup_service.dart';
 import '../models/service_instance.dart';
+import '../di/injection.dart';
 import '../utils/error_formatter.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -68,7 +69,7 @@ class _InstanceListTab extends StatefulWidget {
 }
 
 class _InstanceListTabState extends State<_InstanceListTab> {
-  final AppStateManager _appState = AppStateManager();
+  final AppStateManager _appState = getIt<AppStateManager>();
   List<ServiceInstance> _instances = [];
   String? _activeInstanceId;
   bool _isLoading = true;
@@ -734,8 +735,8 @@ class _SecuritySettingsTab extends StatefulWidget {
 }
 
 class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
-  final BiometricService _biometricService = BiometricService();
-  final BackupService _backupService = BackupService();
+  final BiometricService _biometricService = getIt<BiometricService>();
+  final BackupService _backupService = getIt<BackupService>();
   bool _isLoading = true;
   bool _deviceSupported = false;
   List<BiometricType> _availableBiometrics = [];
@@ -975,7 +976,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
           Navigator.pop(context); // Close progress dialog
 
           // Reload all instances (loads credentials, clears cache, notifies)
-          await AppStateManager().reloadInstances();
+          await getIt<AppStateManager>().reloadInstances();
 
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(

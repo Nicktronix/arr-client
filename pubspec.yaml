@@ -56,6 +56,8 @@ dependencies:
   
   # File picker for import/export
   file_picker: ^10.3.7
+  get_it: ^9.2.1
+  injectable: ^2.7.1+4
 
 dev_dependencies:
   flutter_test:
@@ -67,6 +69,8 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  injectable_generator: ^2.12.1
+  build_runner: ^2.13.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
