@@ -133,6 +133,14 @@ class CacheManager {
     }
   }
 
+  /// Backdate a cache entry's timestamp — test use only
+  @visibleForTesting
+  void backdateTimestamp(String key, Duration by) {
+    if (_cacheTimestamps.containsKey(key)) {
+      _cacheTimestamps[key] = _cacheTimestamps[key]!.subtract(by);
+    }
+  }
+
   /// Get cache statistics for monitoring
   Map<String, dynamic> getStats() {
     return {
