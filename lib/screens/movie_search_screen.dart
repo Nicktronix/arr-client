@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/radarr_service.dart';
-import '../services/app_state_manager.dart';
-import '../config/app_config.dart';
-import '../utils/error_formatter.dart';
+import 'package:arr_client/services/radarr_service.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/config/app_config.dart';
+import 'package:arr_client/utils/error_formatter.dart';
+import 'package:arr_client/di/injection.dart';
 
 class MovieSearchScreen extends StatefulWidget {
   const MovieSearchScreen({super.key});
@@ -12,7 +15,7 @@ class MovieSearchScreen extends StatefulWidget {
 }
 
 class _MovieSearchScreenState extends State<MovieSearchScreen> {
-  final RadarrService _radarr = RadarrService();
+  final RadarrService _radarr = getIt<RadarrService>();
   final TextEditingController _searchController = TextEditingController();
 
   List<dynamic> _searchResults = [];
@@ -26,13 +29,13 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
   void initState() {
     super.initState();
     _instanceIdOnLoad = AppConfig.activeRadarrInstanceId;
-    _loadExistingMovies();
-    AppStateManager().addListener(_onInstanceChanged);
+    unawaited(_loadExistingMovies());
+    getIt<AppStateManager>().addListener(_onInstanceChanged);
   }
 
   @override
   void dispose() {
-    AppStateManager().removeListener(_onInstanceChanged);
+    getIt<AppStateManager>().removeListener(_onInstanceChanged);
     _searchController.dispose();
     super.dispose();
   }
@@ -239,7 +242,7 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
     final String title = movie['title'] ?? 'Unknown Title';
     final int year = movie['year'] ?? 0;
     final String? overview = movie['overview'];
-    final bool inLibrary = _isMovieInLibrary(movie);
+    final inLibrary = _isMovieInLibrary(movie);
     final String status = movie['status'] ?? 'unknown';
     final int runtime = movie['runtime'] ?? 0;
 
@@ -267,7 +270,7 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
               ),
             );
           } else {
-            _showAddMovieDialog(movie);
+            unawaited(_showAddMovieDialog(movie));
           }
         },
         child: Padding(
@@ -342,14 +345,14 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
                     ],
                     if (inLibrary) ...[
                       const SizedBox(height: 8),
-                      Row(
+                      const Row(
                         children: [
                           Icon(
                             Icons.check_circle,
                             size: 16,
                             color: Colors.green,
                           ),
-                          const SizedBox(width: 4),
+                          SizedBox(width: 4),
                           Text(
                             'In Library',
                             style: TextStyle(
@@ -422,9 +425,9 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
 
     int selectedQualityProfile = qualityProfiles.first['id'];
     String selectedRootFolder = rootFolders.first['path'];
-    List<int> selectedTags = [];
-    String selectedMinimumAvailability = 'released';
-    bool searchForMovie = false;
+    final selectedTags = <int>[];
+    var selectedMinimumAvailability = 'released';
+    var searchForMovie = false;
 
     await showDialog(
       context: context,

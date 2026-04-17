@@ -1,14 +1,15 @@
-import 'api_client.dart';
-import '../config/app_config.dart';
-import 'app_state_manager.dart';
+import 'package:http/http.dart' as http;
+import 'package:injectable/injectable.dart';
+import 'package:arr_client/services/api_client.dart';
+import 'package:arr_client/services/app_state_manager.dart';
 
+@lazySingleton
 class SonarrService {
-  // Singleton pattern
-  static final SonarrService _instance = SonarrService._internal();
-  factory SonarrService() => _instance;
-  SonarrService._internal() {
-    // Listen to instance changes and auto-reset
-    AppStateManager().addListener(_onInstanceChanged);
+  final AppStateManager _appStateManager;
+  final http.Client _httpClient;
+
+  SonarrService(this._appStateManager, this._httpClient) {
+    _appStateManager.addListener(_onInstanceChanged);
   }
 
   ApiClient? _client;
@@ -17,23 +18,22 @@ class SonarrService {
 
   Future<ApiClient> get _api async {
     if (_client == null) {
-      final baseUrl = AppConfig.sonarrBaseUrl;
-      final apiKey = AppConfig.sonarrApiKey;
+      final instance = _appStateManager.activeSonarrInstance;
+      final baseUrl = instance?.baseUrl ?? '';
+      final apiKey = instance?.apiKey ?? '';
 
-      // Validate configuration before creating client
       if (baseUrl.isEmpty || apiKey.isEmpty) {
         throw Exception(
           'Sonarr instance not configured. Please add an instance in settings.',
         );
       }
 
-      final basicAuthUsername = AppConfig.sonarrBasicAuthUsername;
-      final basicAuthPassword = AppConfig.sonarrBasicAuthPassword;
       _client = ApiClient(
         baseUrl: baseUrl,
         apiKey: apiKey,
-        basicAuthUsername: basicAuthUsername,
-        basicAuthPassword: basicAuthPassword,
+        basicAuthUsername: instance?.basicAuthUsername,
+        basicAuthPassword: instance?.basicAuthPassword,
+        httpClient: _httpClient,
       );
     }
     return _client!;
@@ -75,7 +75,7 @@ class SonarrService {
   /// Get calendar (upcoming episodes)
   Future<List<dynamic>> getCalendar({DateTime? start, DateTime? end}) async {
     final client = await _api;
-    String endpoint = '/calendar';
+    var endpoint = '/calendar';
 
     if (start != null && end != null) {
       final startStr = start.toIso8601String().split('T')[0];

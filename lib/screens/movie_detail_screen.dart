@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/radarr_service.dart';
-import '../services/app_state_manager.dart';
-import '../config/app_config.dart';
-import 'release_search_screen.dart';
-import '../utils/error_formatter.dart';
+import 'package:arr_client/services/radarr_service.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/config/app_config.dart';
+import 'package:arr_client/di/injection.dart';
+import 'package:arr_client/screens/release_search_screen.dart';
+import 'package:arr_client/utils/error_formatter.dart';
 
 class MovieDetailScreen extends StatefulWidget {
   final int movieId;
@@ -20,7 +23,7 @@ class MovieDetailScreen extends StatefulWidget {
 }
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
-  final RadarrService _radarr = RadarrService();
+  final RadarrService _radarr = getIt<RadarrService>();
   Map<String, dynamic>? _movie;
   bool _isLoading = true;
   String? _error;
@@ -30,13 +33,13 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   void initState() {
     super.initState();
     _instanceIdOnLoad = AppConfig.activeRadarrInstanceId;
-    _loadMovieDetails();
-    AppStateManager().addListener(_onInstanceChanged);
+    unawaited(_loadMovieDetails());
+    getIt<AppStateManager>().addListener(_onInstanceChanged);
   }
 
   @override
   void dispose() {
-    AppStateManager().removeListener(_onInstanceChanged);
+    getIt<AppStateManager>().removeListener(_onInstanceChanged);
     super.dispose();
   }
 
@@ -165,12 +168,14 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   void _openInteractiveSearch() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ReleaseSearchScreen(
-          movieId: widget.movieId,
-          movieTitle: widget.movieTitle,
+    unawaited(
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ReleaseSearchScreen(
+            movieId: widget.movieId,
+            movieTitle: widget.movieTitle,
+          ),
         ),
       ),
     );
@@ -211,7 +216,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           context,
         ).showSnackBar(const SnackBar(content: Text('Movie file deleted')));
         // Reload movie details
-        _loadMovieDetails();
+        unawaited(_loadMovieDetails());
       }
     } catch (e) {
       if (mounted) {
@@ -317,14 +322,11 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
             onSelected: (value) {
               switch (value) {
                 case 'search':
-                  _searchMovie();
-                  break;
+                  unawaited(_searchMovie());
                 case 'interactive_search':
                   _openInteractiveSearch();
-                  break;
                 case 'delete':
-                  _deleteFile();
-                  break;
+                  unawaited(_deleteFile());
               }
             },
             itemBuilder: (context) => [
@@ -414,8 +416,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     final String status = _movie!['status'] ?? 'unknown';
     final bool monitored = _movie!['monitored'] ?? false;
     final int runtime = _movie!['runtime'] ?? 0;
-    final List<String> genres =
-        (_movie!['genres'] as List?)?.cast<String>() ?? [];
+    final genres = (_movie!['genres'] as List?)?.cast<String>() ?? [];
     final double rating = (_movie!['ratings']?['tmdb']?['value'] ?? 0.0)
         .toDouble();
     final bool hasFile = _movie!['hasFile'] ?? false;
@@ -580,7 +581,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   Widget _buildTagsSection() {
-    final List<int> tagIds = (_movie!['tags'] as List?)?.cast<int>() ?? [];
+    final tagIds = (_movie!['tags'] as List?)?.cast<int>() ?? [];
 
     return Row(
       children: [
@@ -711,11 +712,11 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  const Row(
                     children: [
-                      const Icon(Icons.file_present, size: 20),
-                      const SizedBox(width: 8),
-                      const Text(
+                      Icon(Icons.file_present, size: 20),
+                      SizedBox(width: 8),
+                      Text(
                         'File Information',
                         style: TextStyle(
                           fontSize: 16,
@@ -1212,12 +1213,14 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
             FilledButton(
               onPressed: () {
                 Navigator.pop(context);
-                _updateMovie(
-                  monitored: monitored,
-                  qualityProfileId: qualityProfileId,
-                  minimumAvailability: minimumAvailability,
-                  path: path,
-                  tags: selectedTags,
+                unawaited(
+                  _updateMovie(
+                    monitored: monitored,
+                    qualityProfileId: qualityProfileId,
+                    minimumAvailability: minimumAvailability,
+                    path: path,
+                    tags: selectedTags,
+                  ),
                 );
               },
               child: const Text('Save'),

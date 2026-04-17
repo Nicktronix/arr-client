@@ -1,21 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart';
-import 'services/instance_manager.dart';
-import 'services/app_state_manager.dart';
-import 'services/biometric_service.dart';
+import 'package:arr_client/screens/home_screen.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/services/biometric_service.dart';
+import 'package:arr_client/di/injection.dart';
 
 Future<void> main() async {
   // Ensure Flutter is initialized
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize instance manager
-  await InstanceManager().init();
-
-  // Initialize app state manager (loads active instances)
-  await AppStateManager().initialize();
-
-  // Initialize biometric service
-  await BiometricService().init();
+  await configureDependencies();
+  await getIt<AppStateManager>().initialize();
 
   runApp(const MyApp());
 }
@@ -28,7 +24,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
-  final BiometricService _biometricService = BiometricService();
+  final BiometricService _biometricService = getIt<BiometricService>();
   bool _isAuthenticated = false;
   bool _isAuthenticating = false;
 
@@ -36,7 +32,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _checkInitialAuthentication();
+    unawaited(_checkInitialAuthentication());
   }
 
   @override
@@ -53,10 +49,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       // App fully backgrounded — record background time for timeout check.
       // Intentionally excludes inactive: that state fires for overlays and
       // the biometric prompt itself, which would cause an immediate re-auth loop.
-      _biometricService.clearAuthenticationTime();
+      unawaited(_biometricService.clearAuthenticationTime());
     } else if (state == AppLifecycleState.resumed) {
       // App coming back from background - check if re-auth needed
-      _checkReAuthentication();
+      unawaited(_checkReAuthentication());
     }
   }
 
@@ -64,7 +60,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (await _biometricService.isBiometricEnabled() &&
         await _biometricService.needsReAuthentication()) {
       setState(() => _isAuthenticated = false);
-      _authenticate();
+      unawaited(_authenticate());
     }
   }
 

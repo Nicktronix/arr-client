@@ -12,8 +12,7 @@ class ApiClient {
   static const Duration _timeout = Duration(seconds: 30);
   static const int _maxRetries = 2;
 
-  // Instance-level client — closing it cancels in-flight requests (e.g. on instance switch)
-  final http.Client _httpClient = http.Client();
+  final http.Client _httpClient;
 
   ApiClient({
     required this.baseUrl,
@@ -21,7 +20,8 @@ class ApiClient {
     this.basicAuthUsername,
     this.basicAuthPassword,
     this.apiVersion = 'v3',
-  });
+    http.Client? httpClient,
+  }) : _httpClient = httpClient ?? http.Client();
 
   /// Release resources. Called by services when the active instance changes.
   void close() {
@@ -47,7 +47,7 @@ class ApiClient {
   /// Timeouts and HTTP errors are not retried — they either indicate a slow
   /// server (retrying wastes time) or a client mistake (retrying won't help).
   Future<dynamic> _withRetry(Future<http.Response> Function() request) async {
-    int attempt = 0;
+    var attempt = 0;
     while (true) {
       try {
         final response = await request();
@@ -138,7 +138,7 @@ class ApiClient {
     }
 
     // Default to status-based message so empty bodies still produce useful text
-    String errorMessage = _getStatusMessage(response.statusCode);
+    var errorMessage = _getStatusMessage(response.statusCode);
 
     try {
       if (response.body.isNotEmpty) {

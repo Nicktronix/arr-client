@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/sonarr_service.dart';
-import '../services/app_state_manager.dart';
-import '../config/app_config.dart';
-import 'season_detail_screen.dart';
-import '../utils/error_formatter.dart';
+import 'package:arr_client/services/sonarr_service.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/config/app_config.dart';
+import 'package:arr_client/di/injection.dart';
+import 'package:arr_client/screens/season_detail_screen.dart';
+import 'package:arr_client/utils/error_formatter.dart';
 
 class SeriesDetailScreen extends StatefulWidget {
   final int seriesId;
@@ -20,7 +23,7 @@ class SeriesDetailScreen extends StatefulWidget {
 }
 
 class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
-  final SonarrService _sonarr = SonarrService();
+  final SonarrService _sonarr = getIt<SonarrService>();
   Map<String, dynamic>? _series;
   bool _isLoading = true;
   String? _error;
@@ -30,13 +33,13 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
   void initState() {
     super.initState();
     _instanceIdOnLoad = AppConfig.activeSonarrInstanceId;
-    _loadSeriesDetails();
-    AppStateManager().addListener(_onInstanceChanged);
+    unawaited(_loadSeriesDetails());
+    getIt<AppStateManager>().addListener(_onInstanceChanged);
   }
 
   @override
   void dispose() {
-    AppStateManager().removeListener(_onInstanceChanged);
+    getIt<AppStateManager>().removeListener(_onInstanceChanged);
     super.dispose();
   }
 
@@ -206,8 +209,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
     final String network = _series!['network'] ?? 'Unknown';
     final bool monitored = _series!['monitored'] ?? false;
     final int runtime = _series!['runtime'] ?? 0;
-    final List<String> genres =
-        (_series!['genres'] as List?)?.cast<String>() ?? [];
+    final genres = (_series!['genres'] as List?)?.cast<String>() ?? [];
     final double rating = (_series!['ratings']?['value'] ?? 0.0).toDouble();
 
     // Get poster
@@ -414,7 +416,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          ...regularSeasons.map((season) => _buildSeasonItem(season)),
+          ...regularSeasons.cast<Map<String, dynamic>>().map(_buildSeasonItem),
         ],
       ),
     );
@@ -425,30 +427,30 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
     final bool monitored = season['monitored'] ?? false;
     final Map<String, dynamic>? statistics = season['statistics'];
 
-    int totalEpisodes = 0;
-    int episodeFileCount = 0;
+    var totalEpisodes = 0;
+    var episodeFileCount = 0;
 
     if (statistics != null) {
       totalEpisodes = statistics['totalEpisodeCount'] ?? 0;
       episodeFileCount = statistics['episodeFileCount'] ?? 0;
     }
 
-    final double progress = totalEpisodes > 0
-        ? episodeFileCount / totalEpisodes
-        : 0.0;
+    final progress = totalEpisodes > 0 ? episodeFileCount / totalEpisodes : 0.0;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: InkWell(
         onTap: totalEpisodes > 0
             ? () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => SeasonDetailScreen(
-                      seriesId: _series!['id'],
-                      seasonNumber: seasonNumber,
-                      seriesTitle: _series!['title'] ?? 'Unknown',
+                unawaited(
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SeasonDetailScreen(
+                        seriesId: _series!['id'],
+                        seasonNumber: seasonNumber,
+                        seriesTitle: _series!['title'] ?? 'Unknown',
+                      ),
                     ),
                   ),
                 );
@@ -524,7 +526,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
   }
 
   Widget _buildTagsSection() {
-    final List<int> tagIds = (_series!['tags'] as List?)?.cast<int>() ?? [];
+    final tagIds = (_series!['tags'] as List?)?.cast<int>() ?? [];
 
     return Row(
       children: [
@@ -786,13 +788,15 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
             FilledButton(
               onPressed: () {
                 Navigator.pop(context);
-                _updateSeries(
-                  monitored: monitored,
-                  useSeasonFolder: useSeasonFolder,
-                  qualityProfileId: qualityProfileId,
-                  seriesType: seriesType,
-                  path: path,
-                  tags: selectedTags,
+                unawaited(
+                  _updateSeries(
+                    monitored: monitored,
+                    useSeasonFolder: useSeasonFolder,
+                    qualityProfileId: qualityProfileId,
+                    seriesType: seriesType,
+                    path: path,
+                    tags: selectedTags,
+                  ),
                 );
               },
               child: const Text('Save'),

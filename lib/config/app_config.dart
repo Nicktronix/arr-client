@@ -1,10 +1,8 @@
-import '../services/app_state_manager.dart';
+import 'package:arr_client/di/injection.dart';
+import 'package:arr_client/services/app_state_manager.dart';
 
-/// Configuration getters that delegate to AppStateManager.
-/// AppStateManager is the single source of truth — all instance mutations
-/// go through it, so these getters are always in sync.
 class AppConfig {
-  static final AppStateManager _appState = AppStateManager();
+  static AppStateManager get _appState => getIt<AppStateManager>();
 
   static String get sonarrBaseUrl =>
       _appState.activeSonarrInstance?.baseUrl ?? '';

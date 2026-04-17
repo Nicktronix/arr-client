@@ -1,17 +1,15 @@
 import 'package:flutter/foundation.dart';
-import '../models/service_instance.dart';
-import 'instance_manager.dart';
-import 'cache_manager.dart';
+import 'package:injectable/injectable.dart';
+import 'package:arr_client/models/service_instance.dart';
+import 'package:arr_client/services/instance_manager.dart';
+import 'package:arr_client/services/cache_manager.dart';
 
-/// Centralized app state manager that coordinates instance switching and cache invalidation
-/// This is the single source of truth for active instances across the app
+@lazySingleton
 class AppStateManager extends ChangeNotifier {
-  static final AppStateManager _instance = AppStateManager._internal();
-  factory AppStateManager() => _instance;
-  AppStateManager._internal();
+  final InstanceManager _instanceManager;
+  final CacheManager _cacheManager;
 
-  final InstanceManager _instanceManager = InstanceManager();
-  final CacheManager _cacheManager = CacheManager();
+  AppStateManager(this._instanceManager, this._cacheManager);
 
   ServiceInstance? _activeSonarrInstance;
   ServiceInstance? _activeRadarrInstance;

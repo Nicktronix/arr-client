@@ -1,7 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:arr_client/services/instance_manager.dart';
+import 'package:arr_client/di/injection.dart';
 import 'package:arr_client/services/app_state_manager.dart';
 import 'package:arr_client/services/cache_manager.dart';
 import 'package:arr_client/screens/home_screen.dart';
@@ -15,10 +17,10 @@ void main() {
 
   group('Home Screen Widget Tests', () {
     setUp(() async {
-      // Reset state before each test
       SharedPreferences.setMockInitialValues({});
-      await InstanceManager().init();
-      await AppStateManager().initialize();
+      await getIt.reset();
+      await configureDependencies();
+      await getIt<AppStateManager>().initialize();
     });
 
     testWidgets('displays all navigation tabs and icons', (
@@ -205,7 +207,7 @@ void main() {
     });
 
     test('removes stack traces', () {
-      final error = 'Error message\nStack trace line 1\nStack trace line 2';
+      const error = 'Error message\nStack trace line 1\nStack trace line 2';
       final formatted = error_utils.ErrorFormatter.format(error);
       expect(formatted, 'Error message');
     });
@@ -239,14 +241,14 @@ void main() {
     });
 
     test('sanitizes URLs with credentials', () {
-      final error = 'Failed to connect to https://user:pass@sonarr.example.com';
+      const error = 'Failed to connect to https://user:pass@sonarr.example.com';
       final formatted = error_utils.ErrorFormatter.format(error);
       expect(formatted, contains('https://[CREDENTIALS]@'));
       expect(formatted, isNot(contains('user:pass')));
     });
 
     test('redacts API keys in URLs (20+ chars)', () {
-      final error =
+      const error =
           'Request failed: https://sonarr.example.com?apikey=abcdef1234567890ghijkl';
       final formatted = error_utils.ErrorFormatter.format(error);
       expect(formatted, contains('?apikey=[REDACTED]'));
@@ -254,21 +256,21 @@ void main() {
     });
 
     test('redacts 32-character hex API keys', () {
-      final error = 'API error with key: 1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d';
+      const error = 'API error with key: 1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d';
       final formatted = error_utils.ErrorFormatter.format(error);
       expect(formatted, contains('[API-KEY]'));
       expect(formatted, isNot(contains('1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d')));
     });
 
     test('redacts Bearer tokens', () {
-      final error = 'Authorization failed: Bearer abcd1234.efgh5678.ijkl9012';
+      const error = 'Authorization failed: Bearer abcd1234.efgh5678.ijkl9012';
       final formatted = error_utils.ErrorFormatter.format(error);
       expect(formatted, contains('Bearer [TOKEN]'));
       expect(formatted, isNot(contains('abcd1234.efgh5678.ijkl9012')));
     });
 
     test('redacts Basic auth tokens', () {
-      final error = 'Authorization: Basic dXNlcjpwYXNzd29yZA==';
+      const error = 'Authorization: Basic dXNlcjpwYXNzd29yZA==';
       final formatted = error_utils.ErrorFormatter.format(error);
       expect(formatted, contains('Basic [TOKEN]'));
       expect(formatted, isNot(contains('dXNlcjpwYXNzd29yZA==')));
@@ -287,9 +289,10 @@ void main() {
       SharedPreferences.setMockInitialValues({
         'active_sonarr_id': testInstanceId,
       });
-      CacheManager().clearAll();
-      await InstanceManager().init();
-      await AppStateManager().initialize();
+      await getIt.reset();
+      await configureDependencies();
+      await getIt<AppStateManager>().initialize();
+      getIt<CacheManager>().clearAll();
       shouldFetchThrow = false;
       fetchResult = ['item1', 'item2'];
     });
@@ -307,8 +310,8 @@ void main() {
       WidgetTester tester,
     ) async {
       // Seed stale cache
-      AppStateManager().setSonarrCache(testCacheKey, ['cached_item']);
-      CacheManager().backdateTimestamp(
+      getIt<AppStateManager>().setSonarrCache(testCacheKey, ['cached_item']);
+      getIt<CacheManager>().backdateTimestamp(
         fullCacheKey,
         const Duration(minutes: 10),
       );
@@ -328,8 +331,8 @@ void main() {
       WidgetTester tester,
     ) async {
       // Seed stale cache
-      AppStateManager().setSonarrCache(testCacheKey, ['cached_item']);
-      CacheManager().backdateTimestamp(
+      getIt<AppStateManager>().setSonarrCache(testCacheKey, ['cached_item']);
+      getIt<CacheManager>().backdateTimestamp(
         fullCacheKey,
         const Duration(minutes: 10),
       );
@@ -401,7 +404,7 @@ class _TestScreenState extends State<_TestScreen>
   @override
   void initState() {
     super.initState();
-    loadData();
+    unawaited(loadData());
   }
 
   @override

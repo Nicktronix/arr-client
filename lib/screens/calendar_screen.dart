@@ -1,12 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../services/sonarr_service.dart';
-import '../services/radarr_service.dart';
-import '../services/app_state_manager.dart';
-import '../utils/error_formatter.dart';
-import '../config/app_config.dart';
-import 'series_detail_screen.dart';
-import 'movie_detail_screen.dart';
+import 'package:arr_client/services/sonarr_service.dart';
+import 'package:arr_client/services/radarr_service.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/utils/error_formatter.dart';
+import 'package:arr_client/config/app_config.dart';
+import 'package:arr_client/di/injection.dart';
+import 'package:arr_client/screens/series_detail_screen.dart';
+import 'package:arr_client/screens/movie_detail_screen.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -17,9 +20,9 @@ class CalendarScreen extends StatefulWidget {
 
 class _CalendarScreenState extends State<CalendarScreen>
     with SingleTickerProviderStateMixin {
-  final SonarrService _sonarr = SonarrService();
-  final RadarrService _radarr = RadarrService();
-  final AppStateManager _appState = AppStateManager();
+  final SonarrService _sonarr = getIt<SonarrService>();
+  final RadarrService _radarr = getIt<RadarrService>();
+  final AppStateManager _appState = getIt<AppStateManager>();
 
   late TabController _tabController;
   List<dynamic> _sonarrCalendar = [];
@@ -37,7 +40,7 @@ class _CalendarScreenState extends State<CalendarScreen>
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(_onTabChanged);
     _appState.addListener(_onInstanceChanged);
-    _loadData();
+    unawaited(_loadData());
   }
 
   @override
@@ -55,7 +58,7 @@ class _CalendarScreenState extends State<CalendarScreen>
   }
 
   void _onInstanceChanged() {
-    _loadData();
+    unawaited(_loadData());
   }
 
   Future<void> _loadData() async {
@@ -142,7 +145,7 @@ class _CalendarScreenState extends State<CalendarScreen>
     setState(() {
       _selectedDays = days;
     });
-    _loadData();
+    unawaited(_loadData());
   }
 
   Widget _buildBody() {
@@ -271,7 +274,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                   ),
                 ),
               ),
-              ...items.map((item) => _buildCalendarItem(item)),
+              ...items.map(_buildCalendarItem),
               const SizedBox(height: 8),
             ],
           );
@@ -312,7 +315,7 @@ class _CalendarScreenState extends State<CalendarScreen>
     final airDateUtc = episode['airDateUtc'] as String?;
     final hasFile = episode['hasFile'] as bool? ?? false;
 
-    String timeStr = '';
+    var timeStr = '';
     if (airDateUtc != null) {
       final airDate = DateTime.parse(airDateUtc).toLocal();
       timeStr = DateFormat('h:mm a').format(airDate);
@@ -346,12 +349,14 @@ class _CalendarScreenState extends State<CalendarScreen>
         trailing: const Icon(Icons.chevron_right),
         onTap: () {
           if (seriesId != null) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SeriesDetailScreen(
-                  seriesId: seriesId,
-                  seriesTitle: seriesTitle,
+            unawaited(
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SeriesDetailScreen(
+                    seriesId: seriesId,
+                    seriesTitle: seriesTitle,
+                  ),
                 ),
               ),
             );
@@ -371,8 +376,8 @@ class _CalendarScreenState extends State<CalendarScreen>
     final status = movie['status'] as String? ?? '';
 
     // Determine release date and type
-    String releaseInfo = '';
-    String timeStr = '';
+    var releaseInfo = '';
+    var timeStr = '';
 
     if (movie['physicalRelease'] != null) {
       final date = DateTime.parse(movie['physicalRelease']).toLocal();
@@ -419,11 +424,13 @@ class _CalendarScreenState extends State<CalendarScreen>
         trailing: const Icon(Icons.chevron_right),
         onTap: () {
           if (movieId != null) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) =>
-                    MovieDetailScreen(movieId: movieId, movieTitle: title),
+            unawaited(
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      MovieDetailScreen(movieId: movieId, movieTitle: title),
+                ),
               ),
             );
           }
