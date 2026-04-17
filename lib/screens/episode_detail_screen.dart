@@ -1,10 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/sonarr_service.dart';
-import '../services/app_state_manager.dart';
-import '../config/app_config.dart';
-import '../utils/error_formatter.dart';
-import '../di/injection.dart';
-import 'release_search_screen.dart';
+import 'package:arr_client/services/sonarr_service.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/config/app_config.dart';
+import 'package:arr_client/utils/error_formatter.dart';
+import 'package:arr_client/di/injection.dart';
+import 'package:arr_client/screens/release_search_screen.dart';
 
 class EpisodeDetailScreen extends StatefulWidget {
   final int seriesId;
@@ -38,7 +40,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
   void initState() {
     super.initState();
     _instanceIdOnLoad = AppConfig.activeSonarrInstanceId;
-    _loadEpisodeDetails();
+    unawaited(_loadEpisodeDetails());
     getIt<AppStateManager>().addListener(_onInstanceChanged);
   }
 
@@ -209,7 +211,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
           context,
         ).showSnackBar(const SnackBar(content: Text('Episode file deleted')));
         // Reload episode details
-        _loadEpisodeDetails();
+        unawaited(_loadEpisodeDetails());
       }
     } catch (e) {
       if (mounted) {
@@ -225,20 +227,22 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
 
   Future<void> _openInteractiveSearch() async {
     // Show loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: Card(
-          child: Padding(
-            padding: EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Searching for releases...'),
-              ],
+    unawaited(
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Searching for releases...'),
+                ],
+              ),
             ),
           ),
         ),
@@ -274,7 +278,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
 
       // Reload episode details if a download was initiated
       if (result == true && mounted) {
-        _loadEpisodeDetails();
+        unawaited(_loadEpisodeDetails());
       }
     } catch (e) {
       if (!mounted) return;
@@ -320,14 +324,11 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
               onSelected: (value) {
                 switch (value) {
                   case 'search':
-                    _searchForEpisode();
-                    break;
+                    unawaited(_searchForEpisode());
                   case 'interactive_search':
-                    _openInteractiveSearch();
-                    break;
+                    unawaited(_openInteractiveSearch());
                   case 'delete':
-                    _deleteFile();
-                    break;
+                    unawaited(_deleteFile());
                 }
               },
               itemBuilder: (context) => [
@@ -453,7 +454,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
       }
     }
 
-    final bool hasAired = airDate != null && airDate.isBefore(DateTime.now());
+    final hasAired = airDate != null && airDate.isBefore(DateTime.now());
     final bool hasFile = _episode!['hasFile'] ?? false;
 
     return Card(
@@ -462,11 +463,11 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            const Row(
               children: [
-                const Icon(Icons.tv, size: 20),
-                const SizedBox(width: 8),
-                const Text(
+                Icon(Icons.tv, size: 20),
+                SizedBox(width: 8),
+                Text(
                   'Episode Information',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
@@ -576,11 +577,11 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            const Row(
               children: [
-                const Icon(Icons.file_present, size: 20),
-                const SizedBox(width: 8),
-                const Text(
+                Icon(Icons.file_present, size: 20),
+                SizedBox(width: 8),
+                Text(
                   'File Information',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),

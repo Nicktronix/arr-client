@@ -2,8 +2,7 @@ include: package:very_good_analysis/analysis_options.yaml
 
 analyzer:
   language:
-    # Strict type checks disabled until typed models migration (#46) is complete.
-    # Re-enable after freezed models replace Map<String, dynamic> throughout.
+    # Strict type checks re-enable after typed models migration (#46).
     strict-casts: false
     strict-inference: false
     strict-raw-types: false
@@ -12,3 +11,24 @@ linter:
   rules:
     # Project convention: no docstrings (see CLAUDE.md)
     public_member_api_docs: false
+
+    # Blocked on typed models migration (#46) — Map<String, dynamic> throughout
+    avoid_dynamic_calls: false
+
+    # Dart convention recommends relative imports within a package;
+    # very_good_analysis disagrees — we side with VGV for consistency.
+    # Violations fixed via dart fix, rule kept active.
+
+    # Noise — disabled
+    avoid_catches_without_on_clauses: false  # revisit per-site below
+    directives_ordering: false
+    lines_longer_than_80_chars: false
+    prefer_int_literals: false
+    prefer_final_in_for_each: false
+    sort_constructors_first: false
+    avoid_redundant_argument_values: false
+    always_put_required_named_parameters_first: false
+    avoid_types_on_closure_parameters: false
+    cascade_invocations: false
+    sort_pub_dependencies: false
+    join_return_with_assignment: false

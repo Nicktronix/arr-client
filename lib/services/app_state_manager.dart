@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
-import '../models/service_instance.dart';
-import 'instance_manager.dart';
-import 'cache_manager.dart';
+import 'package:arr_client/models/service_instance.dart';
+import 'package:arr_client/services/instance_manager.dart';
+import 'package:arr_client/services/cache_manager.dart';
 
 @lazySingleton
 class AppStateManager extends ChangeNotifier {

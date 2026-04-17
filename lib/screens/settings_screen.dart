@@ -1,14 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:file_picker/file_picker.dart';
-import '../services/app_state_manager.dart';
-import '../services/api_client.dart';
-import '../services/biometric_service.dart';
-import '../services/backup_service.dart';
-import '../models/service_instance.dart';
-import '../di/injection.dart';
-import '../utils/error_formatter.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/services/api_client.dart';
+import 'package:arr_client/services/biometric_service.dart';
+import 'package:arr_client/services/backup_service.dart';
+import 'package:arr_client/models/service_instance.dart';
+import 'package:arr_client/di/injection.dart';
+import 'package:arr_client/utils/error_formatter.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -49,10 +51,10 @@ class _SettingsScreenState extends State<SettingsScreen>
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [
-          const _InstanceListTab(serviceType: 'sonarr'),
-          const _InstanceListTab(serviceType: 'radarr'),
-          const _SecuritySettingsTab(),
+        children: const [
+          _InstanceListTab(serviceType: 'sonarr'),
+          _InstanceListTab(serviceType: 'radarr'),
+          _SecuritySettingsTab(),
         ],
       ),
     );
@@ -78,7 +80,7 @@ class _InstanceListTabState extends State<_InstanceListTab> {
   void initState() {
     super.initState();
     _appState.addListener(_onStateChanged);
-    _loadInstances();
+    unawaited(_loadInstances());
   }
 
   @override
@@ -215,12 +217,14 @@ class _InstanceListTabState extends State<_InstanceListTab> {
   }
 
   void _showAddEditDialog({ServiceInstance? instance}) {
-    showDialog(
-      context: context,
-      builder: (context) => _InstanceFormDialog(
-        serviceType: widget.serviceType,
-        appState: _appState,
-        instance: instance,
+    unawaited(
+      showDialog(
+        context: context,
+        builder: (context) => _InstanceFormDialog(
+          serviceType: widget.serviceType,
+          appState: _appState,
+          instance: instance,
+        ),
       ),
     );
   }
@@ -257,7 +261,7 @@ class _InstanceListTabState extends State<_InstanceListTab> {
             ),
             const SizedBox(height: 24),
             FilledButton.icon(
-              onPressed: () => _showAddEditDialog(),
+              onPressed: _showAddEditDialog,
               icon: const Icon(Icons.add),
               label: const Text('Add Instance'),
             ),
@@ -272,7 +276,7 @@ class _InstanceListTabState extends State<_InstanceListTab> {
           child: RadioGroup<String>(
             groupValue: _activeInstanceId,
             onChanged: (value) {
-              if (value != null) _setActiveInstance(value);
+              if (value != null) unawaited(_setActiveInstance(value));
             },
             child: ListView.builder(
               padding: const EdgeInsets.all(8),
@@ -338,7 +342,7 @@ class _InstanceListTabState extends State<_InstanceListTab> {
           child: SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: () => _showAddEditDialog(),
+              onPressed: _showAddEditDialog,
               icon: const Icon(Icons.add),
               label: const Text('Add Instance'),
             ),
@@ -424,7 +428,7 @@ class _InstanceFormDialogState extends State<_InstanceFormDialog> {
           : null;
 
       // Import services to test connection
-      final ApiClient client = ApiClient(
+      final client = ApiClient(
         baseUrl: baseUrl,
         apiKey: apiKey,
         basicAuthUsername: basicAuthUsername,
@@ -746,7 +750,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
   @override
   void initState() {
     super.initState();
-    _checkBiometricSupport();
+    unawaited(_checkBiometricSupport());
   }
 
   Future<void> _exportInstances() async {
@@ -763,20 +767,22 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
     try {
       // Show progress
       if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const Center(
-            child: Card(
-              child: Padding(
-                padding: EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Preparing export...'),
-                  ],
+        unawaited(
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => const Center(
+              child: Card(
+                child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Preparing export...'),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -829,20 +835,22 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
   Future<void> _importInstances() async {
     try {
       // Show loading while file picker opens
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: Card(
-            child: Padding(
-              padding: EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Opening file picker...'),
-                ],
+      unawaited(
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: Card(
+              child: Padding(
+                padding: EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Opening file picker...'),
+                  ],
+                ),
               ),
             ),
           ),
@@ -874,25 +882,28 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
 
       // Show progress
       if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const Center(
-            child: Card(
-              child: Padding(
-                padding: EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Validating backup...'),
-                  ],
+        unawaited(
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => const Center(
+              child: Card(
+                child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Validating backup...'),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         );
+
         // Give dialog time to render before expensive PBKDF2 operation
         await Future.delayed(const Duration(milliseconds: 50));
       }
@@ -947,25 +958,28 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
 
         // Show import progress
         if (!mounted) return;
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const Center(
-            child: Card(
-              child: Padding(
-                padding: EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Importing instances...'),
-                  ],
+        unawaited(
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => const Center(
+              child: Card(
+                child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Importing instances...'),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         );
+
         // Give dialog time to render before expensive decryption operation
         await Future.delayed(const Duration(milliseconds: 50));
 
@@ -1079,7 +1093,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
           return;
         }
 
-        await _biometricService.setBiometricEnabled(true);
+        await _biometricService.setBiometricEnabled(enabled: true);
         setState(() => _biometricEnabled = true);
 
         if (mounted) {
@@ -1093,7 +1107,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
         }
       } on PlatformException catch (e) {
         if (mounted) {
-          String message = 'Authentication failed';
+          var message = 'Authentication failed';
 
           // Provide more specific error messages
           if (e.code == 'NotAvailable') {
@@ -1147,7 +1161,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
           return;
         }
 
-        await _biometricService.setBiometricEnabled(false);
+        await _biometricService.setBiometricEnabled(enabled: false);
         setState(() => _biometricEnabled = false);
 
         if (mounted) {
@@ -1270,7 +1284,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
                     trailing: DropdownButton<int>(
                       value: _timeoutMinutes,
                       onChanged: (value) {
-                        if (value != null) _setTimeoutMinutes(value);
+                        if (value != null) unawaited(_setTimeoutMinutes(value));
                       },
                       items: const [
                         DropdownMenuItem(

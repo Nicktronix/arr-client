@@ -85,7 +85,7 @@ class CacheManager {
 
     // If no stale entries, remove least accessed
     String? lruKey;
-    int minAccess = double.maxFinite.toInt();
+    var minAccess = double.maxFinite.toInt();
 
     for (final entry in _accessCount.entries) {
       if (entry.value < minAccess) {
@@ -143,8 +143,8 @@ class CacheManager {
       'maxEntries': maxCacheEntries,
       'memoryUsage':
           '${(_cache.length / maxCacheEntries * 100).toStringAsFixed(1)}%',
-      'validEntries': _cache.keys.where((k) => isValid(k)).length,
-      'staleEntries': _cache.keys.where((k) => isStale(k)).length,
+      'validEntries': _cache.keys.where(isValid).length,
+      'staleEntries': _cache.keys.where(isStale).length,
     };
   }
 }

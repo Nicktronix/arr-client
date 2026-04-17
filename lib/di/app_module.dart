@@ -11,7 +11,7 @@ abstract class AppModule {
 
   @lazySingleton
   FlutterSecureStorage get secureStorage => const FlutterSecureStorage(
-    aOptions: AndroidOptions(),
+    aOptions: AndroidOptions.defaultOptions,
     iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
   );
 

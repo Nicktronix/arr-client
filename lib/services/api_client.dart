@@ -47,7 +47,7 @@ class ApiClient {
   /// Timeouts and HTTP errors are not retried — they either indicate a slow
   /// server (retrying wastes time) or a client mistake (retrying won't help).
   Future<dynamic> _withRetry(Future<http.Response> Function() request) async {
-    int attempt = 0;
+    var attempt = 0;
     while (true) {
       try {
         final response = await request();
@@ -138,7 +138,7 @@ class ApiClient {
     }
 
     // Default to status-based message so empty bodies still produce useful text
-    String errorMessage = _getStatusMessage(response.statusCode);
+    var errorMessage = _getStatusMessage(response.statusCode);
 
     try {
       if (response.body.isNotEmpty) {

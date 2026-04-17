@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:injectable/injectable.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../models/service_instance.dart';
+import 'package:arr_client/models/service_instance.dart';
 
 @lazySingleton
 class InstanceManager {
@@ -82,7 +82,7 @@ class InstanceManager {
     if (jsonString == null) return [];
 
     final List<dynamic> jsonList = jsonDecode(jsonString);
-    final List<ServiceInstance> instances = [];
+    final instances = <ServiceInstance>[];
 
     for (var json in jsonList) {
       final instance = await _loadInstanceCredentials(json, serviceType);

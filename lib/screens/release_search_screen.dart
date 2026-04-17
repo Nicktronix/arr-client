@@ -1,10 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/sonarr_service.dart';
-import '../services/radarr_service.dart';
-import '../services/app_state_manager.dart';
-import '../config/app_config.dart';
-import '../utils/error_formatter.dart';
-import '../di/injection.dart';
+import 'package:arr_client/services/sonarr_service.dart';
+import 'package:arr_client/services/radarr_service.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/config/app_config.dart';
+import 'package:arr_client/utils/error_formatter.dart';
+import 'package:arr_client/di/injection.dart';
 
 class ReleaseSearchScreen extends StatefulWidget {
   // Episode-specific (Sonarr)
@@ -58,7 +60,7 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     if (widget.releases != null) {
       _releases = widget.releases;
     } else {
-      _loadReleases();
+      unawaited(_loadReleases());
     }
     getIt<AppStateManager>().addListener(_onInstanceChanged);
   }
@@ -134,29 +136,25 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
 
     // Apply sorting
     releases.sort((a, b) {
-      int comparison = 0;
+      var comparison = 0;
 
       switch (_sortBy) {
         case 'seeders':
           final aSeeders = a['seeders'] ?? 0;
           final bSeeders = b['seeders'] ?? 0;
           comparison = aSeeders.compareTo(bSeeders);
-          break;
         case 'quality':
           final aWeight = a['qualityWeight'] ?? 0;
           final bWeight = b['qualityWeight'] ?? 0;
           comparison = aWeight.compareTo(bWeight);
-          break;
         case 'size':
           final aSize = a['size'] ?? 0;
           final bSize = b['size'] ?? 0;
           comparison = aSize.compareTo(bSize);
-          break;
         case 'cf_score':
           final aScore = a['customFormatScore'] ?? 0;
           final bScore = b['customFormatScore'] ?? 0;
           comparison = aScore.compareTo(bScore);
-          break;
       }
 
       return _sortDescending ? -comparison : comparison;
@@ -195,7 +193,7 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
             children: [
               const Icon(Icons.error_outline, size: 64, color: Colors.red),
               const SizedBox(height: 16),
-              Text('Error loading releases'),
+              const Text('Error loading releases'),
               const SizedBox(height: 8),
               Text(_error!, textAlign: TextAlign.center),
               const SizedBox(height: 24),
@@ -365,13 +363,13 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     final int leechers = release['leechers'] ?? 0;
     final String quality = release['quality']?['quality']?['name'] ?? 'Unknown';
     final int size = release['size'] ?? 0;
-    final String sizeStr = _formatBytes(size);
+    final sizeStr = _formatBytes(size);
     final String indexer = release['indexer'] ?? 'Unknown';
     final int cfScore = release['customFormatScore'] ?? 0;
     final List<dynamic>? rejections = release['rejections'];
-    final bool isRejected = rejections != null && rejections.isNotEmpty;
+    final isRejected = rejections != null && rejections.isNotEmpty;
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final bool hasUnknownMatch = _hasUnknownMatch(release);
+    final hasUnknownMatch = _hasUnknownMatch(release);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
@@ -542,7 +540,7 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     final int cfScore = release['customFormatScore'] ?? 0;
     final int age = release['age'] ?? 0;
     final List<dynamic>? rejections = release['rejections'];
-    final bool isRejected = rejections != null && rejections.isNotEmpty;
+    final isRejected = rejections != null && rejections.isNotEmpty;
     final String? releaseGroup = release['releaseGroup'];
     final String? protocol = release['protocol'];
     final String? edition = release['edition'];
@@ -551,9 +549,9 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     final List<dynamic>? customFormats = release['customFormats'];
 
     // Check if release has series/movie matching issues
-    final bool hasUnknownSeries = !_isMovie && _hasUnknownMatch(release);
-    final bool hasUnknownMovie = _isMovie && _hasUnknownMatch(release);
-    final bool hasMatchingIssues =
+    final hasUnknownSeries = !_isMovie && _hasUnknownMatch(release);
+    final hasUnknownMovie = _isMovie && _hasUnknownMatch(release);
+    final hasMatchingIssues =
         hasUnknownSeries ||
         hasUnknownMovie ||
         (rejections?.any((r) {

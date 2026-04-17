@@ -1,11 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/sonarr_service.dart';
-import '../services/radarr_service.dart';
-import '../services/app_state_manager.dart';
-import '../utils/cached_data_loader.dart';
-import '../utils/error_formatter.dart';
-import '../di/injection.dart';
-import 'manual_import_screen.dart';
+import 'package:arr_client/services/sonarr_service.dart';
+import 'package:arr_client/services/radarr_service.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/utils/cached_data_loader.dart';
+import 'package:arr_client/utils/error_formatter.dart';
+import 'package:arr_client/di/injection.dart';
+import 'package:arr_client/screens/manual_import_screen.dart';
 
 class QueueScreen extends StatefulWidget {
   final VoidCallback? onSettingsPressed;
@@ -49,7 +51,7 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
     // Only load data if at least one instance is configured
     if (_appState.activeSonarrInstance != null ||
         _appState.activeRadarrInstance != null) {
-      loadData();
+      unawaited(loadData());
     }
   }
 
@@ -61,9 +63,9 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
 
   @override
   Future<dynamic> fetchData() async {
-    final List<Future<Map<String, dynamic>>> futures = [];
-    final bool hasSonarr = _appState.getActiveSonarrId() != null;
-    final bool hasRadarr = _appState.getActiveRadarrId() != null;
+    final futures = <Future<Map<String, dynamic>>>[];
+    final hasSonarr = _appState.getActiveSonarrId() != null;
+    final hasRadarr = _appState.getActiveRadarrId() != null;
 
     if (hasSonarr) {
       futures.add(_sonarr.getQueue());
@@ -78,9 +80,9 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
     }
 
     final results = await Future.wait(futures);
-    final List<Map<String, dynamic>> items = [];
+    final items = <Map<String, dynamic>>[];
 
-    int resultIndex = 0;
+    var resultIndex = 0;
 
     // Add Sonarr queue items if instance exists
     if (hasSonarr && resultIndex < results.length) {
@@ -123,7 +125,7 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
 
   @override
   Widget build(BuildContext context) {
-    final bool hasAnyInstance =
+    final hasAnyInstance =
         _appState.getActiveSonarrId() != null ||
         _appState.getActiveRadarrId() != null;
 
@@ -151,7 +153,7 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
   }
 
   Widget _buildEmptyState() {
-    final bool hasAnyInstance =
+    final hasAnyInstance =
         _appState.activeSonarrInstance != null ||
         _appState.activeRadarrInstance != null;
 
@@ -257,12 +259,12 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
     }
 
     // Calculate progress
-    final double progress = size > 0 ? ((size - sizeleft) / size) : 0.0;
-    final double downloaded = size - sizeleft;
+    final progress = size > 0 ? ((size - sizeleft) / size) : 0.0;
+    final downloaded = size - sizeleft;
 
     // Manual import only available when files are actually downloaded
     // Available for: completed downloads, or downloads with warnings/errors (files present but need manual matching)
-    final bool canManualImport =
+    final canManualImport =
         status == 'completed' ||
         trackedDownloadStatus == 'warning' ||
         trackedDownloadStatus == 'error';
@@ -544,7 +546,7 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.star, size: 14, color: Colors.amber),
+                      const Icon(Icons.star, size: 14, color: Colors.amber),
                       const SizedBox(width: 4),
                       Text(
                         'CF: $cfScore',
@@ -613,27 +615,21 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
         case 'downloading':
           backgroundColor = Colors.blue;
           displayText = 'Downloading';
-          break;
         case 'queued':
           backgroundColor = Colors.orange;
           displayText = 'Queued';
-          break;
         case 'paused':
           backgroundColor = Colors.grey;
           displayText = 'Paused';
-          break;
         case 'completed':
           backgroundColor = Colors.green;
           displayText = 'Completed';
-          break;
         case 'failed':
           backgroundColor = Colors.red;
           displayText = 'Failed';
-          break;
         case 'warning':
           backgroundColor = Colors.amber;
           displayText = 'Warning';
-          break;
         default:
           backgroundColor = Colors.grey;
           displayText = status;
@@ -724,7 +720,7 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
 
     // Refresh queue if import was successful
     if (result == true && mounted) {
-      loadData(forceRefresh: true);
+      unawaited(loadData(forceRefresh: true));
     }
   }
 
@@ -776,19 +772,19 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
       // Show loading indicator
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Row(
               children: [
-                const SizedBox(
+                SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
-                const SizedBox(width: 16),
-                const Text('Removing from queue...'),
+                SizedBox(width: 16),
+                Text('Removing from queue...'),
               ],
             ),
-            duration: const Duration(seconds: 30),
+            duration: Duration(seconds: 30),
           ),
         );
       }
@@ -810,7 +806,7 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
         );
 
         // Refresh the queue
-        loadData(forceRefresh: true);
+        unawaited(loadData(forceRefresh: true));
       }
     } catch (e) {
       if (mounted) {

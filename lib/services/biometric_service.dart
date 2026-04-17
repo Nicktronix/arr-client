@@ -59,7 +59,7 @@ class BiometricService {
   }
 
   /// Enable or disable biometric authentication
-  Future<void> setBiometricEnabled(bool enabled) async {
+  Future<void> setBiometricEnabled({required bool enabled}) async {
     await _prefs.setBool(_biometricEnabledKey, enabled);
     if (enabled) {
       _lastAuthTime = DateTime.now();
@@ -95,7 +95,7 @@ class BiometricService {
     required String reason,
     bool biometricOnly = false,
   }) async {
-    final bool didAuthenticate = await _localAuth.authenticate(
+    final didAuthenticate = await _localAuth.authenticate(
       localizedReason: reason,
       biometricOnly: biometricOnly,
       persistAcrossBackgrounding: true, // v3.0.0: replaces stickyAuth
@@ -117,10 +117,12 @@ class BiometricService {
     final timeout = await getTimeoutMinutes();
     if (timeout == timeoutNever) return false;
     if (_lastAuthTime == null) return true; // Never authenticated this session
-    if (_backgroundTime == null)
+    if (_backgroundTime == null) {
       return false; // Not backgrounded since last auth
-    if (timeout == 0)
+    }
+    if (timeout == 0) {
       return true; // Immediately — any background triggers re-auth
+    }
     return DateTime.now().difference(_backgroundTime!).inMinutes >= timeout;
   }
 
@@ -146,7 +148,7 @@ class BiometricService {
   }) async {
     if (!await isBiometricEnabled()) return true;
 
-    return await authenticate(
+    return authenticate(
       reason: 'Authentication required to $operation',
       biometricOnly: false,
     );

@@ -1,8 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/sonarr_service.dart';
-import '../services/radarr_service.dart';
-import '../utils/error_formatter.dart';
-import '../di/injection.dart';
+import 'package:arr_client/services/sonarr_service.dart';
+import 'package:arr_client/services/radarr_service.dart';
+import 'package:arr_client/utils/error_formatter.dart';
+import 'package:arr_client/di/injection.dart';
 
 class ManualImportScreen extends StatefulWidget {
   final String source; // 'sonarr' or 'radarr'
@@ -32,7 +34,7 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
   @override
   void initState() {
     super.initState();
-    _loadImportCandidates();
+    unawaited(_loadImportCandidates());
   }
 
   Future<void> _loadImportCandidates() async {
@@ -110,7 +112,7 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
 
         if (widget.source == 'sonarr') {
           // Build episodeIds from episodes list if not already present
-          List<int> episodeIds = [];
+          var episodeIds = <int>[];
           if (candidate['episodeIds'] != null) {
             episodeIds = (candidate['episodeIds'] as List)
                 .map((id) => id as int)
@@ -743,15 +745,15 @@ class _EditImportDialogState extends State<_EditImportDialog> {
     _editedCandidate = Map<String, dynamic>.from(widget.candidate);
     _initializeValues();
     _releaseGroupController = TextEditingController(text: _releaseGroup);
-    _loadQualities();
-    _loadLanguages();
-    _loadLibraryItems();
+    unawaited(_loadQualities());
+    unawaited(_loadLanguages());
+    unawaited(_loadLibraryItems());
 
     // If series and season are already selected, load episodes
     if (widget.source == 'sonarr' &&
         _selectedItem != null &&
         _selectedSeasonNumber != null) {
-      _loadEpisodesForSeason(_selectedSeasonNumber!);
+      unawaited(_loadEpisodesForSeason(_selectedSeasonNumber!));
     }
   }
 
@@ -990,9 +992,7 @@ class _EditImportDialogState extends State<_EditImportDialog> {
                   border: const OutlineInputBorder(),
                   isDense: true,
                 ),
-                onChanged: (value) {
-                  _searchItems(value);
-                },
+                onChanged: _searchItems,
               ),
 
               // Search results
@@ -1089,7 +1089,7 @@ class _EditImportDialogState extends State<_EditImportDialog> {
                       _availableEpisodes = [];
                     });
                     if (value != null) {
-                      _loadEpisodesForSeason(value);
+                      unawaited(_loadEpisodesForSeason(value));
                     }
                   },
                 ),

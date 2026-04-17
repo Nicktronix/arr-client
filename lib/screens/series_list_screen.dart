@@ -1,9 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/sonarr_service.dart';
-import '../utils/cached_data_loader.dart';
-import '../utils/error_formatter.dart';
-import '../di/injection.dart';
-import 'series_detail_screen.dart';
+import 'package:arr_client/services/sonarr_service.dart';
+import 'package:arr_client/utils/cached_data_loader.dart';
+import 'package:arr_client/utils/error_formatter.dart';
+import 'package:arr_client/di/injection.dart';
+import 'package:arr_client/screens/series_detail_screen.dart';
 
 class SeriesListScreen extends StatefulWidget {
   const SeriesListScreen({super.key});
@@ -33,7 +35,7 @@ class _SeriesListScreenState extends State<SeriesListScreen>
   void initState() {
     super.initState();
     appState.addListener(_onInstanceChanged);
-    loadData();
+    unawaited(loadData());
   }
 
   @override
@@ -48,7 +50,7 @@ class _SeriesListScreenState extends State<SeriesListScreen>
       setState(() {
         // Rebuild to update title with new instance name
       });
-      loadData(forceRefresh: true);
+      unawaited(loadData(forceRefresh: true));
     }
   }
 
@@ -57,7 +59,7 @@ class _SeriesListScreenState extends State<SeriesListScreen>
     try {
       return await _sonarr.getSeries();
     } catch (e) {
-      throw ErrorFormatter.format(e);
+      throw Exception(ErrorFormatter.format(e));
     }
   }
 
@@ -79,21 +81,18 @@ class _SeriesListScreenState extends State<SeriesListScreen>
           final titleB = (b['title'] ?? '').toString().toLowerCase();
           return titleB.compareTo(titleA);
         });
-        break;
       case 'added':
         _series.sort((a, b) {
           final dateA = DateTime.tryParse(a['added'] ?? '') ?? DateTime(1900);
           final dateB = DateTime.tryParse(b['added'] ?? '') ?? DateTime(1900);
           return dateB.compareTo(dateA); // Newest first
         });
-        break;
       case 'year':
         _series.sort((a, b) {
           final yearA = a['year'] ?? 0;
           final yearB = b['year'] ?? 0;
           return yearB.compareTo(yearA); // Newest first
         });
-        break;
       case 'title_asc':
       default:
         _series.sort((a, b) {
@@ -101,7 +100,6 @@ class _SeriesListScreenState extends State<SeriesListScreen>
           final titleB = (b['title'] ?? '').toString().toLowerCase();
           return titleA.compareTo(titleB);
         });
-        break;
     }
   }
 
@@ -164,117 +162,121 @@ class _SeriesListScreenState extends State<SeriesListScreen>
       return;
     }
 
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Switch Sonarr Instance',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            RadioGroup<String>(
-              groupValue: currentInstanceId,
-              onChanged: (value) async {
-                if (value != null && value != currentInstanceId) {
-                  Navigator.pop(context);
-                  // Show loading immediately for instant feedback
-                  setLoadingState();
-                  // Switch instance (clears cache and notifies listeners)
-                  await appState.switchSonarrInstance(value);
-                }
-              },
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: instancesMetadata
-                    .map(
-                      (instance) => RadioListTile<String>(
-                        title: Text(instance['name'] as String),
-                        subtitle: Text(instance['baseUrl'] as String),
-                        value: instance['id'] as String,
-                      ),
-                    )
-                    .toList(),
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showFilterOptions() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Padding(
+    unawaited(
+      showModalBottomSheet(
+        context: context,
+        builder: (context) => Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Sort & Filter',
+                'Switch Sonarr Instance',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Sort By',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
               RadioGroup<String>(
-                groupValue: _sortBy,
-                onChanged: (value) {
-                  if (value != null) {
-                    setModalState(() => _sortBy = value);
-                    setState(() {
-                      _sortBy = value;
-                      _applySorting();
-                    });
+                groupValue: currentInstanceId,
+                onChanged: (value) async {
+                  if (value != null && value != currentInstanceId) {
+                    Navigator.pop(context);
+                    // Show loading immediately for instant feedback
+                    setLoadingState();
+                    // Switch instance (clears cache and notifies listeners)
+                    await appState.switchSonarrInstance(value);
                   }
                 },
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: [
-                    RadioListTile<String>(
-                      title: const Text('Title (A-Z)'),
-                      value: 'title_asc',
-                    ),
-                    RadioListTile<String>(
-                      title: const Text('Title (Z-A)'),
-                      value: 'title_desc',
-                    ),
-                    RadioListTile<String>(
-                      title: const Text('Recently Added'),
-                      value: 'added',
-                    ),
-                    RadioListTile<String>(
-                      title: const Text('Year'),
-                      value: 'year',
-                    ),
-                  ],
+                  children: instancesMetadata
+                      .map(
+                        (instance) => RadioListTile<String>(
+                          title: Text(instance['name'] as String),
+                          subtitle: Text(instance['baseUrl'] as String),
+                          value: instance['id'] as String,
+                        ),
+                      )
+                      .toList(),
                 ),
-              ),
-              const Divider(),
-              const Text(
-                'Filter',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-              SwitchListTile(
-                title: const Text('Show Missing Episodes Only'),
-                value: _showMissingOnly,
-                onChanged: (value) {
-                  setModalState(() => _showMissingOnly = value);
-                  setState(() => _showMissingOnly = value);
-                },
               ),
               const SizedBox(height: 8),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showFilterOptions() {
+    unawaited(
+      showModalBottomSheet(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setModalState) => Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Sort & Filter',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Sort By',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                RadioGroup<String>(
+                  groupValue: _sortBy,
+                  onChanged: (value) {
+                    if (value != null) {
+                      setModalState(() => _sortBy = value);
+                      setState(() {
+                        _sortBy = value;
+                        _applySorting();
+                      });
+                    }
+                  },
+                  child: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      RadioListTile<String>(
+                        title: Text('Title (A-Z)'),
+                        value: 'title_asc',
+                      ),
+                      RadioListTile<String>(
+                        title: Text('Title (Z-A)'),
+                        value: 'title_desc',
+                      ),
+                      RadioListTile<String>(
+                        title: Text('Recently Added'),
+                        value: 'added',
+                      ),
+                      RadioListTile<String>(
+                        title: Text('Year'),
+                        value: 'year',
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(),
+                const Text(
+                  'Filter',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                SwitchListTile(
+                  title: const Text('Show Missing Episodes Only'),
+                  value: _showMissingOnly,
+                  onChanged: (value) {
+                    setModalState(() => _showMissingOnly = value);
+                    setState(() => _showMissingOnly = value);
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         ),
       ),
@@ -337,7 +339,7 @@ class _SeriesListScreenState extends State<SeriesListScreen>
         ],
       ),
       body: buildBody(
-        buildContent: () => _buildSeriesList(),
+        buildContent: _buildSeriesList,
         isEmpty: _series.isEmpty,
         emptyStateWidget: buildEmptyState(
           icon: Icons.tv_off,
@@ -393,7 +395,7 @@ class _SeriesListScreenState extends State<SeriesListScreen>
     final String title = series['title'] ?? 'Unknown Title';
     final int year = series['year'] ?? 0;
     final String status = series['status'] ?? 'unknown';
-    final int seasonCount = (series['seasons'] as List?)?.length ?? 0;
+    final seasonCount = (series['seasons'] as List?)?.length ?? 0;
     final String network = series['network'] ?? 'Unknown Network';
     final bool monitored = series['monitored'] ?? false;
     final String? overview = series['overview'];
@@ -415,12 +417,14 @@ class _SeriesListScreenState extends State<SeriesListScreen>
       elevation: 2,
       child: InkWell(
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => SeriesDetailScreen(
-                seriesId: series['id'],
-                seriesTitle: title,
+          unawaited(
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SeriesDetailScreen(
+                  seriesId: series['id'],
+                  seriesTitle: title,
+                ),
               ),
             ),
           );

@@ -1,7 +1,7 @@
 import 'package:http/http.dart' as http;
 import 'package:injectable/injectable.dart';
-import 'api_client.dart';
-import 'app_state_manager.dart';
+import 'package:arr_client/services/api_client.dart';
+import 'package:arr_client/services/app_state_manager.dart';
 
 @lazySingleton
 class SonarrService {
@@ -75,7 +75,7 @@ class SonarrService {
   /// Get calendar (upcoming episodes)
   Future<List<dynamic>> getCalendar({DateTime? start, DateTime? end}) async {
     final client = await _api;
-    String endpoint = '/calendar';
+    var endpoint = '/calendar';
 
     if (start != null && end != null) {
       final startStr = start.toIso8601String().split('T')[0];

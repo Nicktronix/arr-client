@@ -1,10 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/sonarr_service.dart';
-import '../services/radarr_service.dart';
-import '../services/app_state_manager.dart';
-import '../utils/error_formatter.dart';
-import '../di/injection.dart';
-import '../config/app_config.dart';
+import 'package:arr_client/services/sonarr_service.dart';
+import 'package:arr_client/services/radarr_service.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/utils/error_formatter.dart';
+import 'package:arr_client/di/injection.dart';
+import 'package:arr_client/config/app_config.dart';
 
 class SystemStatusScreen extends StatefulWidget {
   const SystemStatusScreen({super.key});
@@ -29,7 +31,7 @@ class _SystemStatusScreenState extends State<SystemStatusScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    unawaited(_loadData());
     _appState.addListener(_onInstanceChanged);
   }
 
@@ -40,12 +42,12 @@ class _SystemStatusScreenState extends State<SystemStatusScreen> {
   }
 
   void _onInstanceChanged() {
-    _loadData();
+    unawaited(_loadData());
   }
 
   Future<void> _loadData() async {
-    _loadSonarrStatus();
-    _loadRadarrStatus();
+    unawaited(_loadSonarrStatus());
+    unawaited(_loadRadarrStatus());
   }
 
   Future<void> _loadSonarrStatus() async {
@@ -145,16 +147,18 @@ class _SystemStatusScreenState extends State<SystemStatusScreen> {
     final navigator = Navigator.of(context);
 
     // Show loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const AlertDialog(
-        content: Row(
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 16),
-            Text('Testing indexers...'),
-          ],
+    unawaited(
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Testing indexers...'),
+            ],
+          ),
         ),
       ),
     );
@@ -189,17 +193,19 @@ class _SystemStatusScreenState extends State<SystemStatusScreen> {
 
       // Show error dialog
       if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Test Failed'),
-            content: Text(ErrorFormatter.format(e)),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
-              ),
-            ],
+        unawaited(
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Test Failed'),
+              content: Text(ErrorFormatter.format(e)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
           ),
         );
       }

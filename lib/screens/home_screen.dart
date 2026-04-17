@@ -1,15 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'series_list_screen.dart';
-import 'series_search_screen.dart';
-import 'movie_list_screen.dart';
-import 'movie_search_screen.dart';
-import 'queue_screen.dart';
-import 'history_screen.dart';
-import 'settings_screen.dart';
-import 'calendar_screen.dart';
-import 'system_status_screen.dart';
-import '../services/app_state_manager.dart';
-import '../di/injection.dart';
+import 'package:arr_client/screens/series_list_screen.dart';
+import 'package:arr_client/screens/series_search_screen.dart';
+import 'package:arr_client/screens/movie_list_screen.dart';
+import 'package:arr_client/screens/movie_search_screen.dart';
+import 'package:arr_client/screens/queue_screen.dart';
+import 'package:arr_client/screens/history_screen.dart';
+import 'package:arr_client/screens/settings_screen.dart';
+import 'package:arr_client/screens/calendar_screen.dart';
+import 'package:arr_client/screens/system_status_screen.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/di/injection.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -41,9 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onInstanceChanged() {
     // Rebuild screens when instances change
     if (mounted) {
-      setState(() {
-        _initializeScreens();
-      });
+      setState(_initializeScreens);
     }
   }
 
@@ -80,7 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _openSettings() async {
+  Future<void> _openSettings() async {
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const SettingsScreen()),
@@ -104,8 +104,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     if (!_appState.isInitialized) {
-      return Scaffold(
-        body: const Center(
+      return const Scaffold(
+        body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -164,10 +164,12 @@ class _HomeScreenState extends State<HomeScreen> {
               title: const Text('Calendar'),
               onTap: () {
                 Navigator.pop(context); // Close drawer
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const CalendarScreen(),
+                unawaited(
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CalendarScreen(),
+                    ),
                   ),
                 );
               },
@@ -177,10 +179,12 @@ class _HomeScreenState extends State<HomeScreen> {
               title: const Text('System Status'),
               onTap: () {
                 Navigator.pop(context); // Close drawer
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SystemStatusScreen(),
+                unawaited(
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SystemStatusScreen(),
+                    ),
                   ),
                 );
               },
@@ -191,7 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
               title: const Text('Settings'),
               onTap: () {
                 Navigator.pop(context); // Close drawer
-                _openSettings();
+                unawaited(_openSettings());
               },
             ),
           ],
@@ -275,10 +279,12 @@ class SonarrTab extends StatelessWidget {
           const SizedBox(height: 24),
           ElevatedButton.icon(
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const SeriesListScreen(),
+              unawaited(
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SeriesListScreen(),
+                  ),
                 ),
               );
             },
@@ -288,10 +294,12 @@ class SonarrTab extends StatelessWidget {
           const SizedBox(height: 8),
           ElevatedButton.icon(
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const SeriesSearchScreen(),
+              unawaited(
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SeriesSearchScreen(),
+                  ),
                 ),
               );
             },
@@ -371,10 +379,12 @@ class RadarrTab extends StatelessWidget {
           const SizedBox(height: 24),
           ElevatedButton.icon(
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const MovieListScreen(),
+              unawaited(
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MovieListScreen(),
+                  ),
                 ),
               );
             },
@@ -384,10 +394,12 @@ class RadarrTab extends StatelessWidget {
           const SizedBox(height: 8),
           ElevatedButton.icon(
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const MovieSearchScreen(),
+              unawaited(
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MovieSearchScreen(),
+                  ),
                 ),
               );
             },

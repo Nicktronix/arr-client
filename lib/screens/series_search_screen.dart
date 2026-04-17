@@ -1,9 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/sonarr_service.dart';
-import '../services/app_state_manager.dart';
-import '../config/app_config.dart';
-import '../utils/error_formatter.dart';
-import '../di/injection.dart';
+import 'package:arr_client/services/sonarr_service.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/config/app_config.dart';
+import 'package:arr_client/utils/error_formatter.dart';
+import 'package:arr_client/di/injection.dart';
 
 class SeriesSearchScreen extends StatefulWidget {
   const SeriesSearchScreen({super.key});
@@ -27,7 +29,7 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
   void initState() {
     super.initState();
     _instanceIdOnLoad = AppConfig.activeSonarrInstanceId;
-    _loadExistingSeries();
+    unawaited(_loadExistingSeries());
     getIt<AppStateManager>().addListener(_onInstanceChanged);
   }
 
@@ -241,7 +243,7 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
     final int year = series['year'] ?? 0;
     final String? network = series['network'];
     final String? overview = series['overview'];
-    final bool inLibrary = _isSeriesInLibrary(series);
+    final inLibrary = _isSeriesInLibrary(series);
     final String status = series['status'] ?? 'unknown';
 
     // Get poster image
@@ -268,7 +270,7 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
               ),
             );
           } else {
-            _showAddSeriesDialog(series);
+            unawaited(_showAddSeriesDialog(series));
           }
         },
         child: Padding(
@@ -343,14 +345,14 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
                     ],
                     if (inLibrary) ...[
                       const SizedBox(height: 8),
-                      Row(
+                      const Row(
                         children: [
                           Icon(
                             Icons.check_circle,
                             size: 16,
                             color: Colors.green,
                           ),
-                          const SizedBox(width: 4),
+                          SizedBox(width: 4),
                           Text(
                             'In Library',
                             style: TextStyle(
@@ -423,9 +425,9 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
 
     int selectedQualityProfile = qualityProfiles.first['id'];
     String selectedRootFolder = rootFolders.first['path'];
-    List<int> selectedTags = [];
-    String selectedSeriesType = 'standard';
-    bool searchForMissingEpisodes = false;
+    final selectedTags = <int>[];
+    var selectedSeriesType = 'standard';
+    var searchForMissingEpisodes = false;
 
     await showDialog(
       context: context,

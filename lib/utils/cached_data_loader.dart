@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../services/app_state_manager.dart';
-import '../di/injection.dart';
-import 'error_formatter.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/di/injection.dart';
+import 'package:arr_client/utils/error_formatter.dart';
 
 /// Standardized loading states for all screens
 enum LoadingState {

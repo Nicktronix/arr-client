@@ -1,5 +1,5 @@
-import '../di/injection.dart';
-import '../services/app_state_manager.dart';
+import 'package:arr_client/di/injection.dart';
+import 'package:arr_client/services/app_state_manager.dart';
 
 class AppConfig {
   static AppStateManager get _appState => getIt<AppStateManager>();

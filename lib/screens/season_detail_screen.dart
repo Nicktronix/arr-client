@@ -1,11 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/sonarr_service.dart';
-import '../services/app_state_manager.dart';
-import '../config/app_config.dart';
-import '../di/injection.dart';
-import 'release_search_screen.dart';
-import 'episode_detail_screen.dart';
-import '../utils/error_formatter.dart';
+import 'package:arr_client/services/sonarr_service.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/config/app_config.dart';
+import 'package:arr_client/di/injection.dart';
+import 'package:arr_client/screens/release_search_screen.dart';
+import 'package:arr_client/screens/episode_detail_screen.dart';
+import 'package:arr_client/utils/error_formatter.dart';
 
 class SeasonDetailScreen extends StatefulWidget {
   final int seriesId;
@@ -34,7 +36,7 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
   void initState() {
     super.initState();
     _instanceIdOnLoad = AppConfig.activeSonarrInstanceId;
-    _loadSeasonData();
+    unawaited(_loadSeasonData());
     getIt<AppStateManager>().addListener(_onInstanceChanged);
   }
 
@@ -197,22 +199,24 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
       }
     }
 
-    final bool hasAired = airDate != null && airDate.isBefore(DateTime.now());
-    final bool isUpcoming = airDate != null && airDate.isAfter(DateTime.now());
+    final hasAired = airDate != null && airDate.isBefore(DateTime.now());
+    final isUpcoming = airDate != null && airDate.isAfter(DateTime.now());
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
       child: InkWell(
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => EpisodeDetailScreen(
-                seriesId: widget.seriesId,
-                episodeId: episodeId,
-                seriesTitle: widget.seriesTitle,
-                seasonNumber: widget.seasonNumber,
-                episodeNumber: episodeNumber,
+          unawaited(
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => EpisodeDetailScreen(
+                  seriesId: widget.seriesId,
+                  episodeId: episodeId,
+                  seriesTitle: widget.seriesTitle,
+                  seasonNumber: widget.seasonNumber,
+                  episodeNumber: episodeNumber,
+                ),
               ),
             ),
           );
@@ -355,20 +359,22 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
     final episodeNumber = episode['episodeNumber'] ?? 0;
 
     // Show loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: Card(
-          child: Padding(
-            padding: EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Searching for releases...'),
-              ],
+    unawaited(
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Searching for releases...'),
+                ],
+              ),
             ),
           ),
         ),
@@ -403,7 +409,7 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
 
       // Reload season data if a download was initiated
       if (result == true && mounted) {
-        _loadSeasonData();
+        unawaited(_loadSeasonData());
       }
     } catch (e) {
       if (!mounted) return;

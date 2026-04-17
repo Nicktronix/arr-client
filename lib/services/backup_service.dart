@@ -5,8 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:encrypt/encrypt.dart' as encrypt_lib;
 import 'package:injectable/injectable.dart';
 import 'package:pointycastle/export.dart';
-import 'instance_manager.dart';
-import '../models/service_instance.dart';
+import 'package:arr_client/services/instance_manager.dart';
+import 'package:arr_client/models/service_instance.dart';
 
 // ============================================================================
 // Top-level functions for isolate execution
@@ -70,7 +70,7 @@ Future<Map<String, dynamic>> _decryptInIsolate(
 Uint8List _generateSaltSync() {
   final random = Random.secure();
   final salt = Uint8List(16);
-  for (int i = 0; i < salt.length; i++) {
+  for (var i = 0; i < salt.length; i++) {
     salt[i] = random.nextInt(256);
   }
   return salt;
@@ -80,7 +80,7 @@ Uint8List _generateSaltSync() {
 encrypt_lib.IV _generateIVSync() {
   final random = Random.secure();
   final ivBytes = Uint8List(12);
-  for (int i = 0; i < ivBytes.length; i++) {
+  for (var i = 0; i < ivBytes.length; i++) {
     ivBytes[i] = random.nextInt(256);
   }
   return encrypt_lib.IV(ivBytes);
@@ -156,7 +156,7 @@ class BackupService {
   ) async {
     // Read file
     final file = File(filePath);
-    if (!await file.exists()) {
+    if (!file.existsSync()) {
       throw Exception('File not found');
     }
 
@@ -191,7 +191,7 @@ class BackupService {
         (data['radarrInstances'] as List?)?.cast<Map<String, dynamic>>() ?? [];
 
     // Import instances (this will overwrite existing ones with same IDs)
-    int sonarrCount = 0;
+    var sonarrCount = 0;
     for (final instanceData in sonarrList) {
       final instance = ServiceInstance.fromJson(instanceData);
       final existing = await _instanceManager.getSonarrInstances();
@@ -205,7 +205,7 @@ class BackupService {
       sonarrCount++;
     }
 
-    int radarrCount = 0;
+    var radarrCount = 0;
     for (final instanceData in radarrList) {
       final instance = ServiceInstance.fromJson(instanceData);
       final existing = await _instanceManager.getRadarrInstances();
@@ -241,7 +241,7 @@ class BackupService {
     String filePath,
   ) async {
     final file = File(filePath);
-    if (!await file.exists()) {
+    if (!file.existsSync()) {
       throw Exception('File not found');
     }
 

@@ -1,11 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../services/sonarr_service.dart';
-import '../services/radarr_service.dart';
-import '../services/app_state_manager.dart';
-import '../utils/cached_data_loader.dart';
-import '../utils/error_formatter.dart';
-import '../di/injection.dart';
+import 'package:arr_client/services/sonarr_service.dart';
+import 'package:arr_client/services/radarr_service.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/utils/cached_data_loader.dart';
+import 'package:arr_client/utils/error_formatter.dart';
+import 'package:arr_client/di/injection.dart';
 
 class HistoryScreen extends StatefulWidget {
   final VoidCallback? onSettingsPressed;
@@ -34,7 +36,7 @@ class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
   void initState() {
     super.initState();
     appState.addListener(_onInstanceChanged);
-    loadData();
+    unawaited(loadData());
   }
 
   @override
@@ -48,7 +50,7 @@ class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
       setState(() {
         // Rebuild to update title with new instance name
       });
-      loadData(forceRefresh: true);
+      unawaited(loadData(forceRefresh: true));
     }
   }
 
@@ -71,7 +73,7 @@ class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
         return response['records'] ?? [];
       }
     } catch (e) {
-      throw ErrorFormatter.format(e);
+      throw Exception(ErrorFormatter.format(e));
     }
   }
 
@@ -90,7 +92,7 @@ class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
         _selectedService = service;
         _historyRecords = [];
       });
-      loadData(forceRefresh: true);
+      unawaited(loadData(forceRefresh: true));
     }
   }
 
@@ -273,64 +275,66 @@ class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
               final data = record['data'] as Map<String, dynamic>?;
               final failureMessage = data?['message'] as String?;
 
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: Text(_formatEventType(eventType)),
-                  content: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _getItemTitle(record),
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        Text('Source: $sourceTitle'),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Quality: ${record['quality']?['quality']?['name'] ?? 'Unknown'}',
-                        ),
-                        if (record['customFormatScore'] != null) ...[
-                          const SizedBox(height: 4),
-                          Text('CF Score: ${record['customFormatScore']}'),
-                        ],
-                        if (data?['downloadClient'] != null) ...[
-                          const SizedBox(height: 4),
-                          Text('Client: ${data!['downloadClient']}'),
-                        ],
-                        if (failureMessage != null &&
-                            eventType == 'downloadFailed') ...[
+              unawaited(
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: Text(_formatEventType(eventType)),
+                    content: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _getItemTitle(record),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
                           const SizedBox(height: 8),
-                          const Divider(),
+                          Text('Source: $sourceTitle'),
                           const SizedBox(height: 4),
                           Text(
-                            'Failure Reason:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.red,
-                            ),
+                            'Quality: ${record['quality']?['quality']?['name'] ?? 'Unknown'}',
                           ),
+                          if (record['customFormatScore'] != null) ...[
+                            const SizedBox(height: 4),
+                            Text('CF Score: ${record['customFormatScore']}'),
+                          ],
+                          if (data?['downloadClient'] != null) ...[
+                            const SizedBox(height: 4),
+                            Text('Client: ${data!['downloadClient']}'),
+                          ],
+                          if (failureMessage != null &&
+                              eventType == 'downloadFailed') ...[
+                            const SizedBox(height: 8),
+                            const Divider(),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Failure Reason:',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              failureMessage,
+                              style: TextStyle(color: Colors.red[700]),
+                            ),
+                          ],
                           const SizedBox(height: 4),
                           Text(
-                            failureMessage,
-                            style: TextStyle(color: Colors.red[700]),
+                            'Date: ${DateFormat('MMM d, y h:mm a').format(DateTime.parse(record['date']))}',
                           ),
                         ],
-                        const SizedBox(height: 4),
-                        Text(
-                          'Date: ${DateFormat('MMM d, y h:mm a').format(DateTime.parse(record['date']))}',
-                        ),
-                      ],
+                      ),
                     ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Close'),
+                      ),
+                    ],
                   ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Close'),
-                    ),
-                  ],
                 ),
               );
             },

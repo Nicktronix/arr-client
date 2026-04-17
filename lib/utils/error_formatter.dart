@@ -1,4 +1,4 @@
-import '../services/api_client.dart';
+import 'package:arr_client/services/api_client.dart';
 
 class ErrorFormatter {
   /// Format an error for display to the user
@@ -8,7 +8,7 @@ class ErrorFormatter {
     }
 
     // Convert error to string and clean it up
-    String errorStr = error.toString();
+    var errorStr = error.toString();
 
     // Remove "Exception: " prefix if present
     errorStr = errorStr.replaceFirst('Exception: ', '');
@@ -44,36 +44,37 @@ class ErrorFormatter {
 
   /// Sanitize URLs to remove any credentials that might be exposed
   static String _sanitizeUrls(String text) {
+    var result = text;
     // Replace username:password in URLs with [CREDENTIALS]
     // [^/\s]* with backtracking correctly handles @ and : in passwords
     final urlPattern = RegExp(r'https?://[^/\s]*@');
-    text = text.replaceAll(urlPattern, 'https://[CREDENTIALS]@');
+    result = result.replaceAll(urlPattern, 'https://[CREDENTIALS]@');
 
     // Remove API keys from URLs (if accidentally included)
     final apiKeyPattern = RegExp(
-      r'[?&]apikey=[a-zA-Z0-9]{20,}',
+      '[?&]apikey=[a-zA-Z0-9]{20,}',
       caseSensitive: false,
     );
-    text = text.replaceAll(apiKeyPattern, '?apikey=[REDACTED]');
+    result = result.replaceAll(apiKeyPattern, '?apikey=[REDACTED]');
 
     // Remove 32-char hex API keys (Sonarr/Radarr format)
     final hexKeyPattern = RegExp(r'\b[a-f0-9]{32}\b', caseSensitive: false);
-    text = text.replaceAllMapped(hexKeyPattern, (match) => '[API-KEY]');
+    result = result.replaceAllMapped(hexKeyPattern, (match) => '[API-KEY]');
 
     // Remove Bearer tokens
     final bearerPattern = RegExp(
       r'Bearer\s+[A-Za-z0-9\-._~+/]+=*',
       caseSensitive: false,
     );
-    text = text.replaceAll(bearerPattern, 'Bearer [TOKEN]');
+    result = result.replaceAll(bearerPattern, 'Bearer [TOKEN]');
 
     // Remove Basic auth tokens
     final basicAuthPattern = RegExp(
       r'Basic\s+[A-Za-z0-9+/]+=*',
       caseSensitive: false,
     );
-    text = text.replaceAll(basicAuthPattern, 'Basic [TOKEN]');
+    result = result.replaceAll(basicAuthPattern, 'Basic [TOKEN]');
 
-    return text;
+    return result;
   }
 }
