@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:arr_client/models/sonarr/series.dart';
 import 'package:arr_client/services/sonarr_service.dart';
 import 'package:arr_client/services/app_state_manager.dart';
 import 'package:arr_client/config/app_config.dart';
@@ -27,7 +28,7 @@ class SeasonDetailScreen extends StatefulWidget {
 
 class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
   final SonarrService _sonarr = getIt<SonarrService>();
-  List<dynamic> _episodes = [];
+  List<EpisodeResource> _episodes = [];
   bool _isLoading = true;
   String? _error;
   String? _instanceIdOnLoad;
@@ -47,7 +48,6 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
   }
 
   void _onInstanceChanged() {
-    // If instance changed, show warning and return to previous screen
     if (mounted && AppConfig.activeSonarrInstanceId != _instanceIdOnLoad) {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -66,19 +66,13 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
     });
 
     try {
-      // Get episodes for this series
       final allEpisodes = await _sonarr.getEpisodesBySeriesId(widget.seriesId);
-
-      // Filter episodes for this season
       final seasonEpisodes = allEpisodes
-          .where((ep) => ep['seasonNumber'] == widget.seasonNumber)
-          .toList();
-
-      // Sort by episode number
-      seasonEpisodes.sort(
-        (a, b) =>
-            (a['episodeNumber'] as int).compareTo(b['episodeNumber'] as int),
-      );
+          .where((ep) => ep.seasonNumber == widget.seasonNumber)
+          .toList()
+        ..sort(
+          (a, b) => (a.episodeNumber ?? 0).compareTo(b.episodeNumber ?? 0),
+        );
 
       setState(() {
         _episodes = seasonEpisodes;
@@ -181,14 +175,14 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
     );
   }
 
-  Widget _buildEpisodeCard(Map<String, dynamic> episode) {
-    final int episodeNumber = episode['episodeNumber'] ?? 0;
-    final int episodeId = episode['id'] ?? 0;
-    final String title = episode['title'] ?? 'TBA';
-    final String? overview = episode['overview'];
-    final String? airDateUtc = episode['airDateUtc'];
-    final bool hasFile = episode['hasFile'] ?? false;
-    final bool monitored = episode['monitored'] ?? false;
+  Widget _buildEpisodeCard(EpisodeResource episode) {
+    final episodeNumber = episode.episodeNumber ?? 0;
+    final episodeId = episode.id ?? 0;
+    final title = episode.title ?? 'TBA';
+    final overview = episode.overview;
+    final airDateUtc = episode.airDateUtc;
+    final hasFile = episode.hasFile ?? false;
+    final monitored = episode.monitored ?? false;
 
     DateTime? airDate;
     if (airDateUtc != null) {
@@ -304,9 +298,7 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
                               hasFile ? 'Downloaded' : 'Missing',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: hasFile
-                                    ? Colors.green
-                                    : Colors.grey[600],
+                                color: hasFile ? Colors.green : Colors.grey[600],
                               ),
                             ),
                           ],
@@ -353,12 +345,11 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
     );
   }
 
-  Future<void> _showInteractiveSearch(Map<String, dynamic> episode) async {
-    final episodeId = episode['id'];
-    final episodeTitle = episode['title'] ?? 'Unknown';
-    final episodeNumber = episode['episodeNumber'] ?? 0;
+  Future<void> _showInteractiveSearch(EpisodeResource episode) async {
+    final episodeId = episode.id;
+    final episodeTitle = episode.title ?? 'Unknown';
+    final episodeNumber = episode.episodeNumber ?? 0;
 
-    // Show loading dialog
     unawaited(
       showDialog(
         context: context,
@@ -382,7 +373,7 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
     );
 
     try {
-      final releases = await _sonarr.searchEpisodeReleases(episodeId);
+      final releases = await _sonarr.searchEpisodeReleases(episodeId!);
 
       if (!mounted) return;
       Navigator.pop(context); // Close loading dialog
@@ -394,10 +385,9 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
         return;
       }
 
-      // Navigate to release search screen
-      final result = await Navigator.push(
+      final result = await Navigator.push<dynamic>(
         context,
-        MaterialPageRoute(
+        MaterialPageRoute<dynamic>(
           builder: (context) => ReleaseSearchScreen(
             episodeId: episodeId,
             episodeNumber: episodeNumber,
@@ -407,7 +397,6 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
         ),
       );
 
-      // Reload season data if a download was initiated
       if (result == true && mounted) {
         unawaited(_loadSeasonData());
       }

@@ -1,15 +1,90 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:arr_client/models/shared/custom_format.dart';
+import 'package:arr_client/models/shared/language.dart';
+import 'package:arr_client/models/shared/quality.dart';
+import 'package:arr_client/models/shared/quality_profile.dart';
+import 'package:arr_client/models/sonarr/manual_import.dart';
+import 'package:arr_client/models/sonarr/series.dart';
+import 'package:arr_client/models/radarr/manual_import.dart';
+import 'package:arr_client/models/radarr/movie.dart';
 import 'package:arr_client/services/sonarr_service.dart';
 import 'package:arr_client/services/radarr_service.dart';
 import 'package:arr_client/utils/error_formatter.dart';
 import 'package:arr_client/di/injection.dart';
 
+// ---------------------------------------------------------------------------
+// Sealed candidate union — typed throughout, no toJson at load time.
+// Only toJson() calls appear in _performImport when building API request body.
+// ---------------------------------------------------------------------------
+
+sealed class _ImportCandidate {
+  String? get path;
+  String? get relativePath;
+  int? get size;
+  QualityModel? get quality;
+  List<Language>? get languages;
+  int? get customFormatScore;
+  List<CustomFormatResource>? get customFormats;
+  List<ImportRejection>? get rejections;
+  String? get releaseGroup;
+}
+
+final class _SonarrCandidate extends _ImportCandidate {
+  final SonarrManualImport data;
+  _SonarrCandidate(this.data);
+
+  @override
+  String? get path => data.path;
+  @override
+  String? get relativePath => data.relativePath;
+  @override
+  int? get size => data.size;
+  @override
+  QualityModel? get quality => data.quality;
+  @override
+  List<Language>? get languages => data.languages;
+  @override
+  int? get customFormatScore => data.customFormatScore;
+  @override
+  List<CustomFormatResource>? get customFormats => data.customFormats;
+  @override
+  List<ImportRejection>? get rejections => data.rejections;
+  @override
+  String? get releaseGroup => data.releaseGroup;
+}
+
+final class _RadarrCandidate extends _ImportCandidate {
+  final RadarrManualImport data;
+  _RadarrCandidate(this.data);
+
+  @override
+  String? get path => data.path;
+  @override
+  String? get relativePath => data.relativePath;
+  @override
+  int? get size => data.size;
+  @override
+  QualityModel? get quality => data.quality;
+  @override
+  List<Language>? get languages => data.languages;
+  @override
+  int? get customFormatScore => data.customFormatScore;
+  @override
+  List<CustomFormatResource>? get customFormats => data.customFormats;
+  @override
+  List<ImportRejection>? get rejections => data.rejections;
+  @override
+  String? get releaseGroup => data.releaseGroup;
+}
+
+// ---------------------------------------------------------------------------
+
 class ManualImportScreen extends StatefulWidget {
   final String source; // 'sonarr' or 'radarr'
   final String downloadId;
-  final String title; // Queue item title for context
+  final String title;
 
   const ManualImportScreen({
     super.key,
@@ -28,7 +103,7 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
 
   bool _isLoading = true;
   String? _error;
-  List<dynamic> _importCandidates = [];
+  List<_ImportCandidate> _importCandidates = [];
   final Set<int> _selectedIndices = {};
 
   @override
@@ -44,29 +119,30 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
     });
 
     try {
-      final candidates = widget.source == 'sonarr'
-          ? await _sonarr.getManualImport(
-              downloadId: widget.downloadId,
-              filterExistingFiles: false,
-            )
-          : await _radarr.getManualImport(
-              downloadId: widget.downloadId,
-              filterExistingFiles: false,
-            );
+      final List<_ImportCandidate> candidates;
+      if (widget.source == 'sonarr') {
+        final typed = await _sonarr.getManualImport(
+          downloadId: widget.downloadId,
+          filterExistingFiles: false,
+        );
+        candidates = typed.map<_ImportCandidate>(_SonarrCandidate.new).toList();
+      } else {
+        final typed = await _radarr.getManualImport(
+          downloadId: widget.downloadId,
+          filterExistingFiles: false,
+        );
+        candidates = typed.map<_ImportCandidate>(_RadarrCandidate.new).toList();
+      }
 
-      // Sort candidates alphabetically by relative path
       candidates.sort((a, b) {
-        final pathA = (a['relativePath'] ?? '').toString().toLowerCase();
-        final pathB = (b['relativePath'] ?? '').toString().toLowerCase();
+        final pathA = (a.relativePath ?? '').toLowerCase();
+        final pathB = (b.relativePath ?? '').toLowerCase();
         return pathA.compareTo(pathB);
       });
 
       setState(() {
         _importCandidates = candidates;
         _isLoading = false;
-
-        // Pre-select all items - user can deselect if needed
-        // In manual import, we trust the user to decide what to import
         _selectedIndices.clear();
         for (var i = 0; i < candidates.length; i++) {
           _selectedIndices.add(i);
@@ -88,7 +164,6 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
       return;
     }
 
-    // Show progress
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Row(
@@ -107,50 +182,48 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
     );
 
     try {
-      final imports = _selectedIndices.map((i) {
-        final candidate = _importCandidates[i] as Map<String, dynamic>;
+      final sonarrImports = <Map<String, dynamic>>[];
+      final radarrImports = <Map<String, dynamic>>[];
 
-        if (widget.source == 'sonarr') {
-          // Build episodeIds from episodes list if not already present
-          var episodeIds = <int>[];
-          if (candidate['episodeIds'] != null) {
-            episodeIds = (candidate['episodeIds'] as List)
-                .map((id) => id as int)
+      for (final index in _selectedIndices) {
+        final candidate = _importCandidates[index];
+        switch (candidate) {
+          case _SonarrCandidate(:final data):
+            final episodeIds = (data.episodes ?? [])
+                .where((ep) => ep.id != null)
+                .map((ep) => ep.id!)
                 .toList();
-          } else if (candidate['episodes'] != null) {
-            episodeIds = (candidate['episodes'] as List)
-                .map((ep) => ep['id'] as int)
-                .toList();
-          }
-
-          return <String, dynamic>{
-            'path': candidate['path'],
-            'seriesId': candidate['seriesId'] ?? candidate['series']?['id'],
-            'episodeIds': episodeIds,
-            'quality': candidate['quality'],
-            'languages': candidate['languages'] ?? [],
-            'releaseGroup': candidate['releaseGroup'] ?? '',
-            'downloadId': widget.downloadId,
-            'indexerFlags': candidate['indexerFlags'] ?? 0,
-            'releaseType': candidate['releaseType'] ?? 'unknown',
-          };
-        } else {
-          return <String, dynamic>{
-            'path': candidate['path'],
-            'movieId': candidate['movieId'] ?? candidate['movie']?['id'],
-            'quality': candidate['quality'],
-            'languages': candidate['languages'] ?? [],
-            'releaseGroup': candidate['releaseGroup'] ?? '',
-            'downloadId': widget.downloadId,
-            'indexerFlags': candidate['indexerFlags'] ?? 0,
-          };
+            sonarrImports.add({
+              'path': data.path,
+              'seriesId': data.series?.id,
+              'episodeIds': episodeIds,
+              'quality': data.quality?.toJson(),
+              'languages':
+                  data.languages?.map((l) => l.toJson()).toList() ?? [],
+              'releaseGroup': data.releaseGroup ?? '',
+              'downloadId': widget.downloadId,
+              'indexerFlags': 0,
+              'releaseType': 'unknown',
+            });
+          case _RadarrCandidate(:final data):
+            radarrImports.add({
+              'path': data.path,
+              'movieId': data.movie?.id,
+              'quality': data.quality?.toJson(),
+              'languages':
+                  data.languages?.map((l) => l.toJson()).toList() ?? [],
+              'releaseGroup': data.releaseGroup ?? '',
+              'downloadId': widget.downloadId,
+              'indexerFlags': 0,
+            });
         }
-      }).toList();
+      }
 
-      if (widget.source == 'sonarr') {
-        await _sonarr.performManualImport(imports);
-      } else {
-        await _radarr.performManualImport(imports);
+      if (sonarrImports.isNotEmpty) {
+        await _sonarr.performManualImport(sonarrImports);
+      }
+      if (radarrImports.isNotEmpty) {
+        await _radarr.performManualImport(radarrImports);
       }
 
       if (mounted) {
@@ -161,7 +234,7 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context, true); // Return true to trigger queue refresh
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
@@ -199,7 +272,6 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
   }
 
   Widget _buildBody() {
-    // State 1: Loading
     if (_isLoading) {
       return const Center(
         child: Column(
@@ -213,7 +285,6 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
       );
     }
 
-    // State 2: Error
     if (_error != null) {
       return Center(
         child: Padding(
@@ -245,7 +316,6 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
       );
     }
 
-    // State 3: Empty
     if (_importCandidates.isEmpty) {
       return Center(
         child: Column(
@@ -267,10 +337,8 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
       );
     }
 
-    // State 4: Success - Show files
     return Column(
       children: [
-        // Context banner
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(12),
@@ -319,7 +387,6 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
             ],
           ),
         ),
-        // File list
         Expanded(
           child: ListView.builder(
             padding: const EdgeInsets.all(8),
@@ -360,10 +427,8 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
                 onChanged: (value) {
                   setState(() {
                     if (allSelected) {
-                      // Currently all selected -> deselect all
                       _selectedIndices.clear();
                     } else {
-                      // Some or none selected -> select all
                       _selectedIndices.clear();
                       for (var i = 0; i < _importCandidates.length; i++) {
                         _selectedIndices.add(i);
@@ -396,35 +461,34 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
   }
 
   Widget _buildImportCandidate(
-    Map<String, dynamic> candidate,
+    _ImportCandidate candidate,
     int index,
     bool isSelected,
   ) {
-    final relativePath = candidate['relativePath'] ?? 'Unknown';
-    final size = candidate['size'] ?? 0;
-    final quality =
-        candidate['quality']?['quality']?['name'] ?? 'Unknown Quality';
-    final languages = candidate['languages'] as List?;
-    final cfScore = candidate['customFormatScore'] ?? 0;
-    final customFormats = candidate['customFormats'] as List?;
-    final rejections = candidate['rejections'] as List?;
+    final relativePath = candidate.relativePath ?? 'Unknown';
+    final size = candidate.size ?? 0;
+    final quality = candidate.quality?.quality?.name ?? 'Unknown Quality';
+    final languages = candidate.languages;
+    final cfScore = candidate.customFormatScore ?? 0;
+    final customFormats = candidate.customFormats;
+    final rejections = candidate.rejections;
     final hasRejections = rejections != null && rejections.isNotEmpty;
 
-    // Episode info for series
+    String? matchTitle;
     String? episodeInfo;
-    String? seriesTitle;
-    if (widget.source == 'sonarr') {
-      seriesTitle = candidate['series']?['title'];
-      final episodes = candidate['episodes'] as List?;
-      if (episodes != null && episodes.isNotEmpty) {
-        final seasonNum = candidate['seasonNumber'];
-        final episodeNums = episodes
-            .map((e) => e['episodeNumber'].toString())
-            .join(', ');
-        episodeInfo = 'S$seasonNum E$episodeNums';
-      }
-    } else {
-      seriesTitle = candidate['movie']?['title'];
+    switch (candidate) {
+      case _SonarrCandidate(:final data):
+        matchTitle = data.series?.title;
+        final episodes = data.episodes;
+        if (episodes != null && episodes.isNotEmpty) {
+          final seasonNum = data.seasonNumber;
+          final episodeNums = episodes
+              .map((e) => e.episodeNumber?.toString() ?? '?')
+              .join(', ');
+          episodeInfo = 'S$seasonNum E$episodeNums';
+        }
+      case _RadarrCandidate(:final data):
+        matchTitle = data.movie?.title;
     }
 
     return Card(
@@ -460,8 +524,7 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 4),
-                  // Match info
-                  if (seriesTitle != null) ...[
+                  if (matchTitle != null) ...[
                     Row(
                       children: [
                         Icon(
@@ -472,7 +535,7 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                            '$seriesTitle${episodeInfo != null ? ' - $episodeInfo' : ''}',
+                            '$matchTitle${episodeInfo != null ? ' - $episodeInfo' : ''}',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -506,7 +569,6 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
                     ),
                     const SizedBox(height: 4),
                   ],
-                  // File metadata
                   Wrap(
                     spacing: 12,
                     runSpacing: 4,
@@ -521,7 +583,7 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
                       ),
                       if (languages != null && languages.isNotEmpty)
                         Text(
-                          languages.map((l) => l['name']).join(', '),
+                          languages.map((l) => l.name ?? 'Unknown').join(', '),
                           style: TextStyle(
                             fontSize: 11,
                             color: Colors.grey[700],
@@ -533,14 +595,13 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
                       ),
                     ],
                   ),
-                  // Custom formats
                   if (customFormats != null && customFormats.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Wrap(
                       spacing: 4,
                       runSpacing: 2,
                       children: [
-                        for (var format in customFormats)
+                        for (final format in customFormats)
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 4,
@@ -551,7 +612,7 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
                               borderRadius: BorderRadius.circular(3),
                             ),
                             child: Text(
-                              format['name'] ?? 'Unknown',
+                              format.name ?? 'Unknown',
                               style: TextStyle(
                                 fontSize: 9,
                                 color: Colors.blue[900],
@@ -561,7 +622,6 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
                       ],
                     ),
                   ],
-                  // Rejections
                   if (hasRejections) ...[
                     const SizedBox(height: 4),
                     Container(
@@ -607,7 +667,7 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
                                   ),
                                   Expanded(
                                     child: Text(
-                                      r['reason'] ?? 'Rejected',
+                                      r.reason ?? 'Rejected',
                                       style: TextStyle(
                                         fontSize: 11,
                                         color: Colors.amber[900],
@@ -627,8 +687,7 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
               dense: true,
               controlAffinity: ListTileControlAffinity.leading,
             ),
-            // Edit button for overriding matches
-            if (seriesTitle == null || hasRejections)
+            if (matchTitle == null || hasRejections)
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -645,7 +704,7 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        seriesTitle == null
+                        matchTitle == null
                             ? 'Tap to select ${widget.source == 'sonarr' ? 'series and episodes' : 'movie'}'
                             : 'Tap to override match or quality',
                         style: TextStyle(
@@ -669,11 +728,8 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
     );
   }
 
-  Future<void> _showEditDialog(
-    Map<String, dynamic> candidate,
-    int index,
-  ) async {
-    final result = await showDialog<Map<String, dynamic>>(
+  Future<void> _showEditDialog(_ImportCandidate candidate, int index) async {
+    final result = await showDialog<_ImportCandidate>(
       context: context,
       builder: (context) => _EditImportDialog(
         candidate: candidate,
@@ -700,9 +756,12 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
   }
 }
 
-// Edit dialog for modifying import matches
+// ---------------------------------------------------------------------------
+// Edit dialog — typed form state, returns updated _ImportCandidate via copyWith
+// ---------------------------------------------------------------------------
+
 class _EditImportDialog extends StatefulWidget {
-  final Map<String, dynamic> candidate;
+  final _ImportCandidate candidate;
   final String source;
   final SonarrService sonarrService;
   final RadarrService radarrService;
@@ -719,22 +778,20 @@ class _EditImportDialog extends StatefulWidget {
 }
 
 class _EditImportDialogState extends State<_EditImportDialog> {
-  late Map<String, dynamic> _editedCandidate;
   bool _isLoadingQualities = true;
-  List<Map<String, dynamic>> _availableQualities = [];
-
-  // Search state
-  List<dynamic> _searchResults = [];
-  List<dynamic> _allLibraryItems = [];
-
-  // Selected values
-  Map<String, dynamic>? _selectedItem; // series or movie
+  List<Quality> _availableQualities = [];
+  List<SeriesResource> _seriesLibrary = [];
+  List<MovieResource> _movieLibrary = [];
+  List<SeriesResource> _seriesResults = [];
+  List<MovieResource> _movieResults = [];
+  SeriesResource? _selectedSeries;
+  MovieResource? _selectedMovie;
   int? _selectedSeasonNumber;
   Set<int> _selectedEpisodeIds = {};
-  List<dynamic> _availableEpisodes = [];
+  List<EpisodeResource> _availableEpisodes = [];
   bool _isLoadingEpisodes = false;
-  Map<String, dynamic>? _selectedQuality;
-  List<Map<String, dynamic>> _availableLanguages = [];
+  Quality? _selectedQuality;
+  List<LanguageResource> _availableLanguages = [];
   List<int> _selectedLanguageIds = [];
   String _releaseGroup = '';
   late TextEditingController _releaseGroupController;
@@ -742,16 +799,14 @@ class _EditImportDialogState extends State<_EditImportDialog> {
   @override
   void initState() {
     super.initState();
-    _editedCandidate = Map<String, dynamic>.from(widget.candidate);
     _initializeValues();
     _releaseGroupController = TextEditingController(text: _releaseGroup);
     unawaited(_loadQualities());
     unawaited(_loadLanguages());
     unawaited(_loadLibraryItems());
 
-    // If series and season are already selected, load episodes
     if (widget.source == 'sonarr' &&
-        _selectedItem != null &&
+        _selectedSeries != null &&
         _selectedSeasonNumber != null) {
       unawaited(_loadEpisodesForSeason(_selectedSeasonNumber!));
     }
@@ -764,29 +819,35 @@ class _EditImportDialogState extends State<_EditImportDialog> {
   }
 
   void _initializeValues() {
-    // Initialize from existing candidate
-    _selectedItem = widget.source == 'sonarr'
-        ? _editedCandidate['series']
-        : _editedCandidate['movie'];
-
-    _selectedSeasonNumber = _editedCandidate['seasonNumber'];
-
-    final episodes = _editedCandidate['episodes'] as List?;
-    if (episodes != null) {
-      _selectedEpisodeIds = episodes.map((e) => e['id'] as int).toSet();
+    switch (widget.candidate) {
+      case _SonarrCandidate(:final data):
+        _selectedSeries = data.series;
+        _selectedSeasonNumber = data.seasonNumber;
+        if (data.episodes != null) {
+          _selectedEpisodeIds = data.episodes!
+              .where((e) => e.id != null)
+              .map((e) => e.id!)
+              .toSet();
+        }
+        _selectedQuality = data.quality?.quality;
+        if (data.languages != null) {
+          _selectedLanguageIds = data.languages!
+              .where((l) => l.id != null)
+              .map((l) => l.id!)
+              .toList();
+        }
+        _releaseGroup = data.releaseGroup ?? '';
+      case _RadarrCandidate(:final data):
+        _selectedMovie = data.movie;
+        _selectedQuality = data.quality?.quality;
+        if (data.languages != null) {
+          _selectedLanguageIds = data.languages!
+              .where((l) => l.id != null)
+              .map((l) => l.id!)
+              .toList();
+        }
+        _releaseGroup = data.releaseGroup ?? '';
     }
-
-    _selectedQuality = _editedCandidate['quality']?['quality'];
-
-    final languages = _editedCandidate['languages'] as List?;
-    if (languages != null) {
-      _selectedLanguageIds = languages
-          .where((l) => l['id'] != null)
-          .map<int>((l) => l['id'] as int)
-          .toList();
-    }
-
-    _releaseGroup = _editedCandidate['releaseGroup'] ?? '';
   }
 
   Future<void> _loadQualities() async {
@@ -795,32 +856,24 @@ class _EditImportDialogState extends State<_EditImportDialog> {
           ? await widget.sonarrService.getQualityProfiles()
           : await widget.radarrService.getQualityProfiles();
 
-      final qualities = <Map<String, dynamic>>[];
+      final qualities = <Quality>[];
       final seenIds = <int>{};
 
-      for (var profile in profiles) {
-        final items = profile['items'] as List?;
-        if (items == null) continue;
-        for (var item in items) {
-          if (item['quality'] != null) {
-            final quality = item['quality'] as Map<String, dynamic>;
-            final id = quality['id'] as int?;
+      for (final profile in profiles) {
+        for (final item in profile.items ?? <QualityProfileItem>[]) {
+          if (item.quality != null) {
+            final id = item.quality!.id;
             if (id != null && !seenIds.contains(id)) {
-              qualities.add(quality);
+              qualities.add(item.quality!);
               seenIds.add(id);
             }
           }
-          // Also handle grouped quality items
-          final nestedItems = item['items'] as List?;
-          if (nestedItems != null) {
-            for (var nested in nestedItems) {
-              if (nested['quality'] != null) {
-                final quality = nested['quality'] as Map<String, dynamic>;
-                final id = quality['id'] as int?;
-                if (id != null && !seenIds.contains(id)) {
-                  qualities.add(quality);
-                  seenIds.add(id);
-                }
+          for (final nested in item.items ?? <QualityProfileItem>[]) {
+            if (nested.quality != null) {
+              final id = nested.quality!.id;
+              if (id != null && !seenIds.contains(id)) {
+                qualities.add(nested.quality!);
+                seenIds.add(id);
               }
             }
           }
@@ -840,18 +893,11 @@ class _EditImportDialogState extends State<_EditImportDialog> {
 
   Future<void> _loadLanguages() async {
     try {
-      final languages = widget.source == 'sonarr'
+      final langs = widget.source == 'sonarr'
           ? await widget.sonarrService.getLanguages()
           : await widget.radarrService.getLanguages();
       if (mounted) {
-        setState(() {
-          _availableLanguages = languages
-              .where((l) => l['id'] != null && l['name'] != null)
-              .map<Map<String, dynamic>>(
-                (l) => {'id': l['id'] as int, 'name': l['name'].toString()},
-              )
-              .toList();
-        });
+        setState(() => _availableLanguages = langs);
       }
     } catch (e) {
       // Silently fail — language selection just won't show options
@@ -860,11 +906,12 @@ class _EditImportDialogState extends State<_EditImportDialog> {
 
   Future<void> _loadLibraryItems() async {
     try {
-      final items = widget.source == 'sonarr'
-          ? await widget.sonarrService.getSeries()
-          : await widget.radarrService.getMovies();
-      if (mounted) {
-        setState(() => _allLibraryItems = items);
+      if (widget.source == 'sonarr') {
+        final series = await widget.sonarrService.getSeries();
+        if (mounted) setState(() => _seriesLibrary = series);
+      } else {
+        final movies = await widget.radarrService.getMovies();
+        if (mounted) setState(() => _movieLibrary = movies);
       }
     } catch (e) {
       // Silently fail — search results just won't appear
@@ -872,19 +919,19 @@ class _EditImportDialogState extends State<_EditImportDialog> {
   }
 
   Future<void> _loadEpisodesForSeason(int seasonNumber) async {
-    if (_selectedItem == null) return;
-
+    if (_selectedSeries == null) return;
     setState(() => _isLoadingEpisodes = true);
 
     try {
-      final seriesId = _selectedItem!['id'] as int;
       final allEpisodes = await widget.sonarrService.getEpisodesBySeriesId(
-        seriesId,
+        _selectedSeries!.id!,
       );
-
       final seasonEpisodes = allEpisodes
-          .where((ep) => ep['seasonNumber'] == seasonNumber)
-          .toList();
+          .where((ep) => ep.seasonNumber == seasonNumber)
+          .toList()
+        ..sort(
+          (a, b) => (a.episodeNumber ?? 0).compareTo(b.episodeNumber ?? 0),
+        );
 
       if (mounted) {
         setState(() {
@@ -899,66 +946,88 @@ class _EditImportDialogState extends State<_EditImportDialog> {
 
   void _searchItems(String query) {
     if (query.trim().isEmpty) {
-      setState(() => _searchResults = []);
+      setState(() {
+        _seriesResults = [];
+        _movieResults = [];
+      });
       return;
     }
     final lower = query.toLowerCase();
+    if (widget.source == 'sonarr') {
+      setState(() {
+        _seriesResults = _seriesLibrary
+            .where((s) => (s.title ?? '').toLowerCase().contains(lower))
+            .take(20)
+            .toList();
+      });
+    } else {
+      setState(() {
+        _movieResults = _movieLibrary
+            .where((m) => (m.title ?? '').toLowerCase().contains(lower))
+            .take(20)
+            .toList();
+      });
+    }
+  }
+
+  void _selectSeriesItem(SeriesResource series) {
     setState(() {
-      _searchResults = _allLibraryItems
-          .where(
-            (item) =>
-                (item['title'] ?? '').toString().toLowerCase().contains(lower),
-          )
-          .take(20)
-          .toList();
+      _seriesResults = [];
+      _selectedSeries = series;
+      _selectedSeasonNumber = null;
+      _selectedEpisodeIds.clear();
+      _availableEpisodes = [];
     });
   }
 
-  void _selectItem(Map<String, dynamic> item) {
+  void _selectMovieItem(MovieResource movie) {
     setState(() {
-      _selectedItem = item;
-      _searchResults = [];
-
-      // Reset season/episode selection when changing series
-      if (widget.source == 'sonarr') {
-        _selectedSeasonNumber = null;
-        _selectedEpisodeIds.clear();
-      }
+      _movieResults = [];
+      _selectedMovie = movie;
     });
   }
 
   void _applyChanges() {
-    _editedCandidate[widget.source == 'sonarr' ? 'series' : 'movie'] =
-        _selectedItem;
+    final selectedLanguages = _availableLanguages
+        .where((l) => l.id != null && _selectedLanguageIds.contains(l.id))
+        .map((l) => Language(id: l.id, name: l.name))
+        .toList();
 
-    if (widget.source == 'sonarr') {
-      _editedCandidate['seasonNumber'] = _selectedSeasonNumber;
+    final updatedQuality = _selectedQuality != null
+        ? QualityModel(quality: _selectedQuality)
+        : widget.candidate.quality;
 
-      // Build episodes list from selected IDs
-      _editedCandidate['episodes'] = _availableEpisodes
-          .where((e) => _selectedEpisodeIds.contains(e['id']))
-          .toList();
+    switch (widget.candidate) {
+      case _SonarrCandidate(:final data):
+        final selectedEpisodes = _availableEpisodes
+            .where((ep) => ep.id != null && _selectedEpisodeIds.contains(ep.id))
+            .toList();
+        final updated = data.copyWith(
+          series: _selectedSeries,
+          seasonNumber: _selectedSeasonNumber,
+          episodes: selectedEpisodes,
+          quality: updatedQuality,
+          languages: selectedLanguages,
+          releaseGroup: _releaseGroup,
+        );
+        Navigator.pop(context, _SonarrCandidate(updated));
+      case _RadarrCandidate(:final data):
+        final updated = data.copyWith(
+          movie: _selectedMovie,
+          quality: updatedQuality,
+          languages: selectedLanguages,
+          releaseGroup: _releaseGroup,
+        );
+        Navigator.pop(context, _RadarrCandidate(updated));
     }
-
-    if (_selectedQuality != null) {
-      _editedCandidate['quality'] = {'quality': _selectedQuality};
-    }
-
-    _editedCandidate['releaseGroup'] = _releaseGroup;
-
-    _editedCandidate['languages'] = _selectedLanguageIds.map((id) {
-      final lang = _availableLanguages.firstWhere(
-        (l) => l['id'] == id,
-        orElse: () => {'id': id, 'name': 'Unknown'},
-      );
-      return {'id': lang['id'], 'name': lang['name']};
-    }).toList();
-
-    Navigator.pop(context, _editedCandidate);
   }
 
   @override
   Widget build(BuildContext context) {
+    final selectedItemTitle = widget.source == 'sonarr'
+        ? _selectedSeries?.title
+        : _selectedMovie?.title;
+
     return AlertDialog(
       title: const Text('Edit Import Match'),
       content: SizedBox(
@@ -968,9 +1037,8 @@ class _EditImportDialogState extends State<_EditImportDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // File name
               Text(
-                _editedCandidate['relativePath'] ?? 'Unknown',
+                widget.candidate.relativePath ?? 'Unknown',
                 style: const TextStyle(
                   fontSize: 12,
                   fontStyle: FontStyle.italic,
@@ -995,8 +1063,7 @@ class _EditImportDialogState extends State<_EditImportDialog> {
                 onChanged: _searchItems,
               ),
 
-              // Search results
-              if (_searchResults.isNotEmpty)
+              if ((widget.source == 'sonarr' ? _seriesResults : _movieResults).isNotEmpty)
                 Container(
                   margin: const EdgeInsets.only(top: 8),
                   constraints: const BoxConstraints(maxHeight: 200),
@@ -1006,28 +1073,48 @@ class _EditImportDialogState extends State<_EditImportDialog> {
                   ),
                   child: ListView.builder(
                     shrinkWrap: true,
-                    itemCount: _searchResults.length,
+                    itemCount: widget.source == 'sonarr'
+                        ? _seriesResults.length
+                        : _movieResults.length,
                     itemBuilder: (context, index) {
-                      final item = _searchResults[index];
-                      final title = item['title'] ?? 'Unknown';
-                      final year = item['year']?.toString() ?? '';
-                      return ListTile(
-                        dense: true,
-                        title: Text(
-                          title,
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                        subtitle: year.isNotEmpty
-                            ? Text(year, style: const TextStyle(fontSize: 11))
-                            : null,
-                        onTap: () => _selectItem(item),
-                      );
+                      if (widget.source == 'sonarr') {
+                        final s = _seriesResults[index];
+                        return ListTile(
+                          dense: true,
+                          title: Text(
+                            s.title ?? 'Unknown',
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          subtitle: s.year != null
+                              ? Text(
+                                  '${s.year}',
+                                  style: const TextStyle(fontSize: 11),
+                                )
+                              : null,
+                          onTap: () => _selectSeriesItem(s),
+                        );
+                      } else {
+                        final m = _movieResults[index];
+                        return ListTile(
+                          dense: true,
+                          title: Text(
+                            m.title ?? 'Unknown',
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          subtitle: m.year != null
+                              ? Text(
+                                  '${m.year}',
+                                  style: const TextStyle(fontSize: 11),
+                                )
+                              : null,
+                          onTap: () => _selectMovieItem(m),
+                        );
+                      }
                     },
                   ),
                 ),
 
-              // Selected series/movie
-              if (_selectedItem != null) ...[
+              if (selectedItemTitle != null) ...[
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(8),
@@ -1045,7 +1132,7 @@ class _EditImportDialogState extends State<_EditImportDialog> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          _selectedItem!['title'] ?? 'Unknown',
+                          selectedItemTitle,
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -1057,8 +1144,8 @@ class _EditImportDialogState extends State<_EditImportDialog> {
                 ),
               ],
 
-              // Season selector (TV only)
-              if (widget.source == 'sonarr' && _selectedItem != null) ...[
+              // Season selector (Sonarr only)
+              if (widget.source == 'sonarr' && _selectedSeries != null) ...[
                 const SizedBox(height: 16),
                 const Text(
                   'Season',
@@ -1072,16 +1159,15 @@ class _EditImportDialogState extends State<_EditImportDialog> {
                   ),
                   initialValue: _selectedSeasonNumber,
                   hint: const Text('Select season'),
-                  items:
-                      (_selectedItem!['seasons'] as List?)
-                          ?.map(
-                            (season) => DropdownMenuItem<int>(
-                              value: season['seasonNumber'] as int,
-                              child: Text('Season ${season['seasonNumber']}'),
-                            ),
-                          )
-                          .toList() ??
-                      [],
+                  items: (_selectedSeries!.seasons ?? [])
+                      .where((s) => s.seasonNumber != null && s.seasonNumber != 0)
+                      .map(
+                        (season) => DropdownMenuItem<int>(
+                          value: season.seasonNumber,
+                          child: Text('Season ${season.seasonNumber}'),
+                        ),
+                      )
+                      .toList(),
                   onChanged: (value) {
                     setState(() {
                       _selectedSeasonNumber = value;
@@ -1095,9 +1181,9 @@ class _EditImportDialogState extends State<_EditImportDialog> {
                 ),
               ],
 
-              // Episode selector (TV only)
+              // Episode selector (Sonarr only)
               if (widget.source == 'sonarr' &&
-                  _selectedItem != null &&
+                  _selectedSeries != null &&
                   _selectedSeasonNumber != null) ...[
                 const SizedBox(height: 16),
                 const Text(
@@ -1129,9 +1215,9 @@ class _EditImportDialogState extends State<_EditImportDialog> {
                             itemCount: _availableEpisodes.length,
                             itemBuilder: (context, index) {
                               final episode = _availableEpisodes[index];
-                              final episodeId = episode['id'] as int;
-                              final episodeNumber = episode['episodeNumber'];
-                              final title = episode['title'] ?? 'TBA';
+                              final episodeId = episode.id!;
+                              final episodeNumber = episode.episodeNumber;
+                              final title = episode.title ?? 'TBA';
 
                               return CheckboxListTile(
                                 dense: true,
@@ -1170,21 +1256,21 @@ class _EditImportDialogState extends State<_EditImportDialog> {
                     border: OutlineInputBorder(),
                     isDense: true,
                   ),
-                  initialValue: _selectedQuality?['id'] as int?,
+                  initialValue: _selectedQuality?.id,
                   hint: const Text('Select quality'),
                   items: _availableQualities
                       .map(
-                        (quality) => DropdownMenuItem<int>(
-                          value: quality['id'] as int,
-                          child: Text(quality['name'] ?? 'Unknown'),
+                        (q) => DropdownMenuItem<int>(
+                          value: q.id,
+                          child: Text(q.name ?? 'Unknown'),
                         ),
                       )
                       .toList(),
                   onChanged: (value) {
                     setState(() {
                       _selectedQuality = _availableQualities.firstWhere(
-                        (q) => q['id'] == value,
-                        orElse: () => {},
+                        (q) => q.id == value,
+                        orElse: () => const Quality(),
                       );
                     });
                   },
@@ -1224,9 +1310,9 @@ class _EditImportDialogState extends State<_EditImportDialog> {
                   spacing: 8,
                   runSpacing: 4,
                   children: _availableLanguages.map((lang) {
-                    final id = lang['id'] as int;
+                    final id = lang.id!;
                     return FilterChip(
-                      label: Text(lang['name'] as String),
+                      label: Text(lang.name ?? 'Unknown'),
                       selected: _selectedLanguageIds.contains(id),
                       onSelected: (selected) {
                         setState(() {

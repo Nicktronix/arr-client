@@ -1,6 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:arr_client/models/radarr/movie.dart';
+import 'package:arr_client/models/shared/media_cover.dart';
+import 'package:arr_client/models/shared/media_info.dart';
+import 'package:arr_client/models/shared/quality_profile.dart';
+import 'package:arr_client/models/shared/root_folder.dart';
+import 'package:arr_client/models/shared/tag.dart';
 import 'package:arr_client/services/radarr_service.dart';
 import 'package:arr_client/services/app_state_manager.dart';
 import 'package:arr_client/config/app_config.dart';
@@ -24,7 +30,7 @@ class MovieDetailScreen extends StatefulWidget {
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
   final RadarrService _radarr = getIt<RadarrService>();
-  Map<String, dynamic>? _movie;
+  MovieResource? _movie;
   bool _isLoading = true;
   String? _error;
   String? _instanceIdOnLoad;
@@ -44,7 +50,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   void _onInstanceChanged() {
-    // If instance changed, show warning and return to previous screen
     if (mounted && AppConfig.activeRadarrInstanceId != _instanceIdOnLoad) {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -79,18 +84,14 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   Future<void> _toggleMonitoring() async {
     if (_movie == null) return;
 
-    final currentMonitored = _movie!['monitored'] ?? false;
+    final currentMonitored = _movie!.monitored ?? false;
 
     try {
-      // Optimistically update UI
       setState(() {
-        _movie!['monitored'] = !currentMonitored;
+        _movie = _movie!.copyWith(monitored: !currentMonitored);
       });
 
-      // Update via API
-      final updatedMovie = Map<String, dynamic>.from(_movie!);
-      updatedMovie['monitored'] = !currentMonitored;
-      await _radarr.updateMovie(updatedMovie);
+      await _radarr.updateMovie(_movie!);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -104,9 +105,8 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         );
       }
     } catch (e) {
-      // Revert on error
       setState(() {
-        _movie!['monitored'] = currentMonitored;
+        _movie = _movie!.copyWith(monitored: currentMonitored);
       });
 
       if (mounted) {
@@ -182,7 +182,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   Future<void> _deleteFile() async {
-    final movieFile = _movie?['movieFile'];
+    final movieFile = _movie?.movieFile;
     if (movieFile == null) return;
 
     final confirmed = await showDialog<bool>(
@@ -209,13 +209,12 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     if (confirmed != true) return;
 
     try {
-      await _radarr.deleteMovieFile(movieFile['id']);
+      await _radarr.deleteMovieFile(movieFile.id!);
 
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Movie file deleted')));
-        // Reload movie details
         unawaited(_loadMovieDetails());
       }
     } catch (e) {
@@ -289,15 +288,11 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   Widget _buildAppBar() {
-    // Get banner/fanart image
-    final List<dynamic>? images = _movie!['images'];
     String? fanartUrl;
-    if (images != null) {
-      for (var image in images) {
-        if (image['coverType'] == 'fanart') {
-          fanartUrl = image['remoteUrl'];
-          break;
-        }
+    for (final image in _movie!.images ?? <MediaCover>[]) {
+      if (image.coverType == 'fanart') {
+        fanartUrl = image.remoteUrl;
+        break;
       }
     }
 
@@ -308,12 +303,12 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         if (_movie != null)
           IconButton(
             icon: Icon(
-              _movie!['monitored'] == true
+              _movie!.monitored == true
                   ? Icons.visibility
                   : Icons.visibility_off,
             ),
             onPressed: _toggleMonitoring,
-            tooltip: _movie!['monitored'] == true
+            tooltip: _movie!.monitored == true
                 ? 'Disable monitoring'
                 : 'Enable monitoring',
           ),
@@ -330,7 +325,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
               }
             },
             itemBuilder: (context) => [
-              if (_movie!['hasFile'] != true)
+              if (_movie!.hasFile != true)
                 const PopupMenuItem(
                   value: 'search',
                   child: Row(
@@ -351,7 +346,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                   ],
                 ),
               ),
-              if (_movie!['hasFile'] == true)
+              if (_movie!.hasFile == true)
                 const PopupMenuItem(
                   value: 'delete',
                   child: Row(
@@ -411,25 +406,20 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   Widget _buildHeader() {
-    final String title = _movie!['title'] ?? 'Unknown';
-    final int year = _movie!['year'] ?? 0;
-    final String status = _movie!['status'] ?? 'unknown';
-    final bool monitored = _movie!['monitored'] ?? false;
-    final int runtime = _movie!['runtime'] ?? 0;
-    final genres = (_movie!['genres'] as List?)?.cast<String>() ?? [];
-    final double rating = (_movie!['ratings']?['tmdb']?['value'] ?? 0.0)
-        .toDouble();
-    final bool hasFile = _movie!['hasFile'] ?? false;
+    final title = _movie!.title ?? 'Unknown';
+    final year = _movie!.year ?? 0;
+    final status = _movie!.status ?? 'unknown';
+    final monitored = _movie!.monitored ?? false;
+    final runtime = _movie!.runtime ?? 0;
+    final genres = _movie!.genres ?? [];
+    final rating = _movie!.ratings?.tmdb?.value ?? 0.0;
+    final hasFile = _movie!.hasFile ?? false;
 
-    // Get poster
-    final List<dynamic>? images = _movie!['images'];
     String? posterUrl;
-    if (images != null) {
-      for (var image in images) {
-        if (image['coverType'] == 'poster') {
-          posterUrl = image['remoteUrl'];
-          break;
-        }
+    for (final image in _movie!.images ?? <MediaCover>[]) {
+      if (image.coverType == 'poster') {
+        posterUrl = image.remoteUrl;
+        break;
       }
     }
 
@@ -438,7 +428,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Poster
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: posterUrl != null
@@ -464,7 +453,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                   ),
           ),
           const SizedBox(width: 16),
-          // Info
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -546,10 +534,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       const SizedBox(width: 4),
                       Text(
                         'Downloaded',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.green[700],
-                        ),
+                        style: TextStyle(fontSize: 14, color: Colors.green[700]),
                       ),
                     ],
                   ],
@@ -561,10 +546,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                     runSpacing: 6,
                     children: genres.take(3).map((genre) {
                       return Chip(
-                        label: Text(
-                          genre,
-                          style: const TextStyle(fontSize: 12),
-                        ),
+                        label: Text(genre, style: const TextStyle(fontSize: 12)),
                         visualDensity: VisualDensity.compact,
                       );
                     }).toList(),
@@ -581,7 +563,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   Widget _buildTagsSection() {
-    final tagIds = (_movie!['tags'] as List?)?.cast<int>() ?? [];
+    final tagIds = _movie!.tags ?? [];
 
     return Row(
       children: [
@@ -594,7 +576,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           )
         else
           Expanded(
-            child: FutureBuilder<List<dynamic>>(
+            child: FutureBuilder<List<TagResource>>(
               future: _radarr.getTags(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
@@ -606,7 +588,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
 
                 final allTags = snapshot.data!;
                 final movieTags = allTags
-                    .where((t) => tagIds.contains(t['id']))
+                    .where((t) => t.id != null && tagIds.contains(t.id))
                     .toList();
 
                 return Wrap(
@@ -615,7 +597,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                   children: movieTags.map((tag) {
                     return Chip(
                       label: Text(
-                        tag['label'],
+                        tag.label ?? '',
                         style: const TextStyle(fontSize: 12),
                       ),
                       padding: const EdgeInsets.symmetric(
@@ -640,7 +622,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   Widget _buildOverview() {
-    final String? overview = _movie!['overview'];
+    final overview = _movie!.overview;
     if (overview == null || overview.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -657,11 +639,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           const SizedBox(height: 8),
           Text(
             overview,
-            style: TextStyle(
-              fontSize: 15,
-              color: Colors.grey[700],
-              height: 1.5,
-            ),
+            style: TextStyle(fontSize: 15, color: Colors.grey[700], height: 1.5),
           ),
           const SizedBox(height: 24),
         ],
@@ -670,22 +648,21 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   Widget _buildFileInfo() {
-    final bool hasFile = _movie!['hasFile'] ?? false;
+    final hasFile = _movie!.hasFile ?? false;
     if (!hasFile) return const SizedBox.shrink();
 
-    final movieFile = _movie!['movieFile'];
+    final movieFile = _movie!.movieFile;
     if (movieFile == null) return const SizedBox.shrink();
 
-    final String quality =
-        movieFile['quality']?['quality']?['name'] ?? 'Unknown';
-    final int size = movieFile['size'] ?? 0;
-    final String? dateAdded = movieFile['dateAdded'];
-    final String? releaseGroup = movieFile['releaseGroup'];
-    final List<dynamic>? languages = movieFile['languages'];
-    final List<dynamic>? customFormats = movieFile['customFormats'];
-    final int customFormatScore = movieFile['customFormatScore'] ?? 0;
-    final Map<String, dynamic>? mediaInfo = movieFile['mediaInfo'];
-    final String? relativePath = movieFile['relativePath'];
+    final quality = movieFile.quality?.quality?.name ?? 'Unknown';
+    final size = movieFile.size ?? 0;
+    final dateAdded = movieFile.dateAdded;
+    final releaseGroup = movieFile.releaseGroup;
+    final languages = movieFile.languages;
+    final customFormats = movieFile.customFormats;
+    final customFormatScore = movieFile.customFormatScore ?? 0;
+    final mediaInfo = movieFile.mediaInfo;
+    final relativePath = movieFile.relativePath;
 
     DateTime? addedDate;
     if (dateAdded != null) {
@@ -726,10 +703,8 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                     ],
                   ),
                   const Divider(height: 24),
-                  // Quality
                   _buildInfoRow(Icons.high_quality, 'Quality', quality),
                   const SizedBox(height: 8),
-                  // Size and Date
                   _buildInfoRow(Icons.storage, 'Size', _formatBytes(size)),
                   if (addedDate != null) ...[
                     const SizedBox(height: 8),
@@ -739,21 +714,18 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       _formatAirDate(addedDate),
                     ),
                   ],
-                  // Release Group
                   if (releaseGroup != null && releaseGroup.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     _buildInfoRow(Icons.group, 'Release Group', releaseGroup),
                   ],
-                  // Languages
                   if (languages != null && languages.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     _buildInfoRow(
                       Icons.language,
                       'Languages',
-                      languages.map((l) => l['name'] ?? 'Unknown').join(', '),
+                      languages.map((l) => l.name ?? 'Unknown').join(', '),
                     ),
                   ],
-                  // Custom Formats
                   if (customFormats != null && customFormats.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     const Text(
@@ -768,10 +740,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       spacing: 6,
                       runSpacing: 6,
                       children: [
-                        for (var format in customFormats)
+                        for (final format in customFormats)
                           Chip(
                             label: Text(
-                              format['name'] ?? 'Unknown',
+                              format.name ?? 'Unknown',
                               style: const TextStyle(fontSize: 11),
                             ),
                             materialTapTargetSize:
@@ -791,7 +763,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                           : Colors.red,
                     ),
                   ],
-                  // Media Info
                   if (mediaInfo != null) ...[
                     const SizedBox(height: 16),
                     const Text(
@@ -804,7 +775,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                     const SizedBox(height: 8),
                     _buildMediaInfoGrid(mediaInfo),
                   ],
-                  // File Path
                   if (relativePath != null && relativePath.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     const Text(
@@ -842,6 +812,280 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _showEditMovieDialog() async {
+    List<QualityProfileResource>? qualityProfiles;
+    List<RootFolderResource>? rootFolders;
+    List<TagResource>? allTags;
+
+    try {
+      final futureProfiles = _radarr.getQualityProfiles();
+      final futureFolders = _radarr.getRootFolders();
+      final futureTags = _radarr.getTags();
+      qualityProfiles = await futureProfiles;
+      rootFolders = await futureFolders;
+      allTags = await futureTags;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error loading settings: ${ErrorFormatter.format(e)}',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+
+    var monitored = _movie!.monitored ?? true;
+    var qualityProfileId = _movie!.qualityProfileId ?? 0;
+    var minimumAvailability = _movie!.minimumAvailability ?? 'released';
+    var path = _movie!.path ?? '';
+    final selectedTags = List<int>.from(_movie!.tags ?? []);
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Edit Movie'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CheckboxListTile(
+                  value: monitored,
+                  onChanged: (value) {
+                    setDialogState(() => monitored = value ?? true);
+                  },
+                  title: const Text('Monitored'),
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Quality Profile',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  initialValue: qualityProfileId,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                  items: qualityProfiles!.map((profile) {
+                    return DropdownMenuItem<int>(
+                      value: profile.id,
+                      child: Text(profile.name ?? ''),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setDialogState(() => qualityProfileId = value);
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Minimum Availability',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: minimumAvailability,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'announced',
+                      child: Text('Announced'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'inCinemas',
+                      child: Text('In Cinemas'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'released',
+                      child: Text('Released'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setDialogState(() => minimumAvailability = value);
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Root Folder',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: () {
+                    for (final folder in rootFolders!) {
+                      final rootPath = folder.path ?? '';
+                      if (path.startsWith(rootPath)) return rootPath;
+                    }
+                    return rootFolders.first.path ?? '';
+                  }(),
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                  items: rootFolders!.map((folder) {
+                    final folderPath = folder.path ?? '';
+                    return DropdownMenuItem<String>(
+                      value: folderPath,
+                      child: Text(
+                        folderPath,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (newRootFolder) {
+                    if (newRootFolder != null) {
+                      final movieTitle = _movie!.title ?? '';
+                      final year = _movie!.year ?? '';
+                      setDialogState(
+                        () => path = '$newRootFolder/$movieTitle ($year)',
+                      );
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                if (allTags!.isNotEmpty) ...[
+                  const Text(
+                    'Tags',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: allTags.map((tag) {
+                      final isSelected =
+                          tag.id != null && selectedTags.contains(tag.id);
+                      return FilterChip(
+                        label: Text(tag.label ?? ''),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          if (tag.id == null) return;
+                          setDialogState(() {
+                            if (selected) {
+                              selectedTags.add(tag.id!);
+                            } else {
+                              selectedTags.remove(tag.id);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(context);
+                unawaited(
+                  _updateMovie(
+                    monitored: monitored,
+                    qualityProfileId: qualityProfileId,
+                    minimumAvailability: minimumAvailability,
+                    path: path,
+                    tags: selectedTags,
+                  ),
+                );
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateMovie({
+    required bool monitored,
+    required int qualityProfileId,
+    required String minimumAvailability,
+    required String path,
+    required List<int> tags,
+  }) async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 16),
+              Text('Updating movie...'),
+            ],
+          ),
+          duration: Duration(seconds: 10),
+        ),
+      );
+
+      final updated = _movie!.copyWith(
+        monitored: monitored,
+        qualityProfileId: qualityProfileId,
+        minimumAvailability: minimumAvailability,
+        path: path,
+        tags: tags,
+      );
+      await _radarr.updateMovie(updated);
+
+      await _loadMovieDetails();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Movie updated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating movie: ${ErrorFormatter.format(e)}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   String _formatStatus(String status) {
@@ -885,7 +1129,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     final diff = now.difference(date);
 
     if (diff.isNegative) {
-      // Future date
       final absDiff = date.difference(now);
       if (absDiff.inDays == 0) return 'Today';
       if (absDiff.inDays == 1) return 'Tomorrow';
@@ -893,7 +1136,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     }
 
-    // Past date
     if (diff.inDays == 0) return 'Today';
     if (diff.inDays == 1) return 'Yesterday';
     if (diff.inDays < 7) return '${diff.inDays} days ago';
@@ -947,43 +1189,38 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     );
   }
 
-  Widget _buildMediaInfoGrid(Map<String, dynamic> mediaInfo) {
+  Widget _buildMediaInfoGrid(MediaInfoResource mediaInfo) {
     final items = <MapEntry<String, String>>[];
 
-    // Video info
-    if (mediaInfo['videoCodec'] != null) {
-      items.add(MapEntry('Video Codec', mediaInfo['videoCodec']));
+    if (mediaInfo.videoCodec != null) {
+      items.add(MapEntry('Video Codec', mediaInfo.videoCodec!));
     }
-    if (mediaInfo['resolution'] != null) {
-      items.add(MapEntry('Resolution', mediaInfo['resolution']));
+    if (mediaInfo.resolution != null) {
+      items.add(MapEntry('Resolution', mediaInfo.resolution!));
     }
-    if (mediaInfo['videoBitDepth'] != null) {
-      items.add(MapEntry('Bit Depth', '${mediaInfo['videoBitDepth']}-bit'));
+    if (mediaInfo.videoBitDepth != null) {
+      items.add(MapEntry('Bit Depth', '${mediaInfo.videoBitDepth}-bit'));
     }
-    if (mediaInfo['videoFps'] != null) {
-      items.add(MapEntry('Frame Rate', '${mediaInfo['videoFps']} fps'));
+    if (mediaInfo.videoFps != null) {
+      items.add(MapEntry('Frame Rate', '${mediaInfo.videoFps} fps'));
     }
-    if (mediaInfo['scanType'] != null) {
-      items.add(MapEntry('Scan Type', mediaInfo['scanType']));
+    if (mediaInfo.scanType != null) {
+      items.add(MapEntry('Scan Type', mediaInfo.scanType!));
     }
-
-    // Audio info
-    if (mediaInfo['audioCodec'] != null) {
-      items.add(MapEntry('Audio Codec', mediaInfo['audioCodec']));
+    if (mediaInfo.audioCodec != null) {
+      items.add(MapEntry('Audio Codec', mediaInfo.audioCodec!));
     }
-    if (mediaInfo['audioChannels'] != null) {
-      items.add(MapEntry('Audio Channels', '${mediaInfo['audioChannels']}.0'));
+    if (mediaInfo.audioChannels != null) {
+      items.add(MapEntry('Audio Channels', '${mediaInfo.audioChannels}'));
     }
-    if (mediaInfo['audioLanguages'] != null) {
-      items.add(MapEntry('Audio Lang', mediaInfo['audioLanguages']));
+    if (mediaInfo.audioLanguages != null) {
+      items.add(MapEntry('Audio Lang', mediaInfo.audioLanguages!));
     }
-
-    // Other
-    if (mediaInfo['runTime'] != null) {
-      items.add(MapEntry('Duration', mediaInfo['runTime']));
+    if (mediaInfo.runTime != null) {
+      items.add(MapEntry('Duration', mediaInfo.runTime!));
     }
-    if (mediaInfo['subtitles'] != null) {
-      items.add(MapEntry('Subtitles', mediaInfo['subtitles']));
+    if (mediaInfo.subtitles != null) {
+      items.add(MapEntry('Subtitles', mediaInfo.subtitles!));
     }
 
     return Wrap(
@@ -1010,285 +1247,5 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           )
           .toList(),
     );
-  }
-
-  Future<void> _showEditMovieDialog() async {
-    // Load quality profiles, root folders, and tags
-    List<dynamic>? qualityProfiles;
-    List<dynamic>? rootFolders;
-    List<dynamic>? allTags;
-
-    try {
-      final results = await Future.wait([
-        _radarr.getQualityProfiles(),
-        _radarr.getRootFolders(),
-        _radarr.getTags(),
-      ]);
-      qualityProfiles = results[0];
-      rootFolders = results[1];
-      allTags = results[2];
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Error loading settings: ${ErrorFormatter.format(e)}',
-            ),
-          ),
-        );
-      }
-      return;
-    }
-
-    if (!mounted) return;
-
-    // Current movie values
-    bool monitored = _movie!['monitored'] ?? true;
-    int qualityProfileId = _movie!['qualityProfileId'];
-    String minimumAvailability = _movie!['minimumAvailability'] ?? 'released';
-    String path = _movie!['path'];
-    final selectedTags = List<int>.from(_movie!['tags'] ?? []);
-
-    await showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Edit Movie'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CheckboxListTile(
-                  value: monitored,
-                  onChanged: (value) {
-                    setDialogState(() => monitored = value ?? true);
-                  },
-                  title: const Text('Monitored'),
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Quality Profile',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<int>(
-                  initialValue: qualityProfileId,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                  ),
-                  items: qualityProfiles!.map((profile) {
-                    return DropdownMenuItem<int>(
-                      value: profile['id'],
-                      child: Text(profile['name']),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setDialogState(() => qualityProfileId = value!);
-                  },
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Minimum Availability',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  initialValue: minimumAvailability,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'announced',
-                      child: Text('Announced'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'inCinemas',
-                      child: Text('In Cinemas'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'released',
-                      child: Text('Released'),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    setDialogState(() => minimumAvailability = value!);
-                  },
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Root Folder',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  initialValue: () {
-                    // Find which root folder the current path is under
-                    for (var folder in rootFolders!) {
-                      final rootPath = folder['path'] as String;
-                      if (path.startsWith(rootPath)) {
-                        return rootPath;
-                      }
-                    }
-                    // If no match, return first root folder
-                    return rootFolders.first['path'] as String;
-                  }(),
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                  ),
-                  items: rootFolders!.map((folder) {
-                    final folderPath = folder['path'] as String;
-                    return DropdownMenuItem<String>(
-                      value: folderPath,
-                      child: Text(
-                        folderPath,
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (newRootFolder) {
-                    if (newRootFolder != null) {
-                      // Update path to use new root folder
-                      final movieTitle = _movie!['title'];
-                      final year = _movie!['year'];
-                      setDialogState(
-                        () => path = '$newRootFolder/$movieTitle ($year)',
-                      );
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-                if (allTags!.isNotEmpty) ...[
-                  const Text(
-                    'Tags',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: allTags.map((tag) {
-                      final isSelected = selectedTags.contains(tag['id']);
-                      return FilterChip(
-                        label: Text(tag['label']),
-                        selected: isSelected,
-                        onSelected: (selected) {
-                          setDialogState(() {
-                            if (selected) {
-                              selectedTags.add(tag['id']);
-                            } else {
-                              selectedTags.remove(tag['id']);
-                            }
-                          });
-                        },
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(context);
-                unawaited(
-                  _updateMovie(
-                    monitored: monitored,
-                    qualityProfileId: qualityProfileId,
-                    minimumAvailability: minimumAvailability,
-                    path: path,
-                    tags: selectedTags,
-                  ),
-                );
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _updateMovie({
-    required bool monitored,
-    required int qualityProfileId,
-    required String minimumAvailability,
-    required String path,
-    required List<int> tags,
-  }) async {
-    try {
-      // Show loading
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Row(
-            children: [
-              SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              SizedBox(width: 16),
-              Text('Updating movie...'),
-            ],
-          ),
-          duration: Duration(seconds: 10),
-        ),
-      );
-
-      // Update all fields on the movie object
-      final updatedMovie = Map<String, dynamic>.from(_movie!);
-      updatedMovie['monitored'] = monitored;
-      updatedMovie['qualityProfileId'] = qualityProfileId;
-      updatedMovie['minimumAvailability'] = minimumAvailability;
-      updatedMovie['path'] = path;
-      updatedMovie['tags'] = tags;
-
-      await _radarr.updateMovie(updatedMovie);
-
-      // Reload movie details
-      await _loadMovieDetails();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Movie updated successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error updating movie: ${ErrorFormatter.format(e)}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 }

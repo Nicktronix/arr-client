@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:arr_client/models/radarr/movie.dart';
+import 'package:arr_client/models/shared/media_cover.dart';
 import 'package:arr_client/services/radarr_service.dart';
 import 'package:arr_client/utils/cached_data_loader.dart';
 import 'package:arr_client/utils/error_formatter.dart';
@@ -19,7 +21,7 @@ class _MovieListScreenState extends State<MovieListScreen>
   final RadarrService _radarr = getIt<RadarrService>();
   final TextEditingController _searchController = TextEditingController();
 
-  List<dynamic> _movies = [];
+  List<MovieResource> _movies = [];
   bool _isSearching = false;
   String _searchQuery = '';
   String _sortBy = 'title_asc'; // title_asc, title_desc, added, year
@@ -67,7 +69,7 @@ class _MovieListScreenState extends State<MovieListScreen>
   void onDataLoaded(dynamic data) {
     if (mounted) {
       setState(() {
-        _movies = data as List<dynamic>;
+        _movies = data as List<MovieResource>;
         _applySorting();
       });
     }
@@ -77,50 +79,47 @@ class _MovieListScreenState extends State<MovieListScreen>
     switch (_sortBy) {
       case 'title_desc':
         _movies.sort((a, b) {
-          final titleA = (a['title'] ?? '').toString().toLowerCase();
-          final titleB = (b['title'] ?? '').toString().toLowerCase();
+          final titleA = (a.title ?? '').toLowerCase();
+          final titleB = (b.title ?? '').toLowerCase();
           return titleB.compareTo(titleA);
         });
       case 'added':
         _movies.sort((a, b) {
-          final dateA = DateTime.tryParse(a['added'] ?? '') ?? DateTime(1900);
-          final dateB = DateTime.tryParse(b['added'] ?? '') ?? DateTime(1900);
+          final dateA = DateTime.tryParse(a.added ?? '') ?? DateTime(1900);
+          final dateB = DateTime.tryParse(b.added ?? '') ?? DateTime(1900);
           return dateB.compareTo(dateA); // Newest first
         });
       case 'year':
         _movies.sort((a, b) {
-          final yearA = a['year'] ?? 0;
-          final yearB = b['year'] ?? 0;
+          final yearA = a.year ?? 0;
+          final yearB = b.year ?? 0;
           return yearB.compareTo(yearA); // Newest first
         });
       case 'title_asc':
       default:
         _movies.sort((a, b) {
-          final titleA = (a['title'] ?? '').toString().toLowerCase();
-          final titleB = (b['title'] ?? '').toString().toLowerCase();
+          final titleA = (a.title ?? '').toLowerCase();
+          final titleB = (b.title ?? '').toLowerCase();
           return titleA.compareTo(titleB);
         });
     }
   }
 
-  List<dynamic> get _filteredMovies {
+  List<MovieResource> get _filteredMovies {
     var filtered = _movies;
 
     // Apply missing files filter
     if (_showMissingOnly) {
-      filtered = filtered.where((movie) {
-        final hasFile = movie['hasFile'] ?? false;
-        return !hasFile; // Show only movies without files
-      }).toList();
+      filtered = filtered.where((movie) => !(movie.hasFile ?? false)).toList();
     }
 
     // Apply search filter
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
       filtered = filtered.where((movie) {
-        final title = (movie['title'] ?? '').toLowerCase();
-        final year = movie['year']?.toString() ?? '';
-        final status = (movie['status'] ?? '').toLowerCase();
+        final title = (movie.title ?? '').toLowerCase();
+        final year = movie.year?.toString() ?? '';
+        final status = (movie.status ?? '').toLowerCase();
 
         return title.contains(query) ||
             year.contains(query) ||
@@ -388,28 +387,23 @@ class _MovieListScreenState extends State<MovieListScreen>
     );
   }
 
-  Widget _buildMovieCard(Map<String, dynamic> movie) {
-    final String title = movie['title'] ?? 'Unknown Title';
-    final int year = movie['year'] ?? 0;
-    final String status = movie['status'] ?? 'unknown';
-    final bool monitored = movie['monitored'] ?? false;
-    final String? overview = movie['overview'];
-    final bool hasFile = movie['hasFile'] ?? false;
+  Widget _buildMovieCard(MovieResource movie) {
+    final title = movie.title ?? 'Unknown Title';
+    final year = movie.year ?? 0;
+    final status = movie.status ?? 'unknown';
+    final monitored = movie.monitored ?? false;
+    final overview = movie.overview;
+    final hasFile = movie.hasFile ?? false;
 
-    // Get poster image if available
-    final List<dynamic>? images = movie['images'];
     String? posterUrl;
-    if (images != null) {
-      for (var image in images) {
-        if (image['coverType'] == 'poster') {
-          posterUrl = image['remoteUrl'];
-          break;
-        }
+    for (final image in movie.images ?? <MediaCover>[]) {
+      if (image.coverType == 'poster') {
+        posterUrl = image.remoteUrl;
+        break;
       }
     }
 
-    // Get runtime
-    final int runtime = movie['runtime'] ?? 0;
+    final runtime = movie.runtime ?? 0;
     final runtimeStr = runtime > 0 ? '${runtime}min' : '';
 
     return Card(
@@ -418,11 +412,11 @@ class _MovieListScreenState extends State<MovieListScreen>
       child: InkWell(
         onTap: () {
           unawaited(
-            Navigator.push(
+            Navigator.push<void>(
               context,
-              MaterialPageRoute(
+              MaterialPageRoute<void>(
                 builder: (context) =>
-                    MovieDetailScreen(movieId: movie['id'], movieTitle: title),
+                    MovieDetailScreen(movieId: movie.id!, movieTitle: title),
               ),
             ).then((_) async {
               await loadData(forceRefresh: true);

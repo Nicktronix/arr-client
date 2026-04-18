@@ -106,7 +106,7 @@ void main() {
 
   group('Service Instance Model Tests', () {
     test('creates instance with required fields', () {
-      final instance = ServiceInstance(
+      const instance = ServiceInstance(
         id: 'test-id',
         name: 'Test Instance',
         baseUrl: 'https://sonarr.example.com',
@@ -122,7 +122,7 @@ void main() {
     });
 
     test('creates instance with optional basic auth', () {
-      final instance = ServiceInstance(
+      const instance = ServiceInstance(
         id: 'test-id',
         name: 'Test Instance',
         baseUrl: 'https://sonarr.example.com',
@@ -136,7 +136,7 @@ void main() {
     });
 
     test('serializes to JSON correctly', () {
-      final instance = ServiceInstance(
+      const instance = ServiceInstance(
         id: 'test-id',
         name: 'Test Instance',
         baseUrl: 'https://sonarr.example.com',
@@ -176,7 +176,7 @@ void main() {
     });
 
     test('copyWith updates only specified fields', () {
-      final instance = ServiceInstance(
+      const instance = ServiceInstance(
         id: 'test-id',
         name: 'Test Instance',
         baseUrl: 'https://sonarr.example.com',
@@ -398,7 +398,7 @@ class _TestScreenState extends State<_TestScreen>
 
   @override
   void onDataLoaded(dynamic data) {
-    _items = (data as List).map((e) => e.toString()).toList();
+    _items = (data as List<dynamic>).map((e) => '$e').toList();
   }
 
   @override
@@ -412,7 +412,7 @@ class _TestScreenState extends State<_TestScreen>
     return Scaffold(
       body: buildBody(
         buildContent: () => ListView(
-          children: _items.map((e) => ListTile(title: Text(e))).toList(),
+          children: _items.map((e) => ListTile(title: Text(e as String))).toList(),
         ),
         isEmpty: _items.isEmpty,
         emptyStateWidget: const Text('empty'),

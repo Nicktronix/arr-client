@@ -905,7 +905,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
         );
 
         // Give dialog time to render before expensive PBKDF2 operation
-        await Future.delayed(const Duration(milliseconds: 50));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
       }
 
       // Validate first (includes PBKDF2 key derivation - 600k iterations)
@@ -932,7 +932,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
                 Text('• ${validation['radarrCount']} Radarr instance(s)'),
                 const SizedBox(height: 12),
                 Text(
-                  'Exported: ${DateTime.parse(validation['exportDate']).toLocal().toString().split('.')[0]}',
+                  'Exported: ${DateTime.parse(validation['exportDate'] as String).toLocal().toString().split('.')[0]}',
                 ),
                 const SizedBox(height: 12),
                 const Text(
@@ -981,7 +981,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
         );
 
         // Give dialog time to render before expensive decryption operation
-        await Future.delayed(const Duration(milliseconds: 50));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
 
         // Import (includes PBKDF2 key derivation + AES-GCM decryption)
         final counts = await _backupService.importInstances(password, filePath);

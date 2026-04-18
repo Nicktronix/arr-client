@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:arr_client/models/shared/arr_queue_item.dart';
+import 'package:arr_client/models/sonarr/queue_item.dart';
 import 'package:arr_client/services/sonarr_service.dart';
 import 'package:arr_client/services/radarr_service.dart';
 import 'package:arr_client/services/app_state_manager.dart';
@@ -23,7 +25,7 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
   final RadarrService _radarr = getIt<RadarrService>();
   final AppStateManager _appState = getIt<AppStateManager>();
 
-  List<Map<String, dynamic>> _queueItems = [];
+  List<ArrQueueItem> _queueItems = [];
 
   @override
   void initState() {
@@ -40,15 +42,12 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
 
   void _onInstanceChanged() {
     if (mounted) {
-      setState(() {
-        // Rebuild with new instance state
-      });
+      setState(() {});
       _loadDataIfConfigured();
     }
   }
 
   void _loadDataIfConfigured() {
-    // Only load data if at least one instance is configured
     if (_appState.activeSonarrInstance != null ||
         _appState.activeRadarrInstance != null) {
       unawaited(loadData());
@@ -59,55 +58,26 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
   String get cacheKey => 'queue_combined';
 
   @override
-  bool get isSonarrScreen => true; // Use Sonarr cache bucket for combined queue
+  bool get isSonarrScreen => true;
 
   @override
   Future<dynamic> fetchData() async {
-    final futures = <Future<Map<String, dynamic>>>[];
     final hasSonarr = _appState.getActiveSonarrId() != null;
     final hasRadarr = _appState.getActiveRadarrId() != null;
 
-    if (hasSonarr) {
-      futures.add(_sonarr.getQueue());
-    }
+    if (!hasSonarr && !hasRadarr) return <ArrQueueItem>[];
 
-    if (hasRadarr) {
-      futures.add(_radarr.getQueue());
-    }
+    final futures = <Future<List<ArrQueueItem>>>[];
 
-    if (futures.isEmpty) {
-      return [];
-    }
+    if (hasSonarr) futures.add(_sonarr.getQueue());
+    if (hasRadarr) futures.add(_radarr.getQueue());
 
     final results = await Future.wait(futures);
-    final items = <Map<String, dynamic>>[];
+    final items = results.expand((list) => list).toList();
 
-    var resultIndex = 0;
-
-    // Add Sonarr queue items if instance exists
-    if (hasSonarr && resultIndex < results.length) {
-      final sonarrQueue = results[resultIndex++];
-      if (sonarrQueue['records'] != null) {
-        for (var item in sonarrQueue['records']) {
-          items.add({...item, 'source': 'sonarr'});
-        }
-      }
-    }
-
-    // Add Radarr queue items if instance exists
-    if (hasRadarr && resultIndex < results.length) {
-      final radarrQueue = results[resultIndex++];
-      if (radarrQueue['records'] != null) {
-        for (var item in radarrQueue['records']) {
-          items.add({...item, 'source': 'radarr'});
-        }
-      }
-    }
-
-    // Sort by download progress (downloading first)
     items.sort((a, b) {
-      final statusA = a['status'] ?? '';
-      final statusB = b['status'] ?? '';
+      final statusA = a.status ?? '';
+      final statusB = b.status ?? '';
       if (statusA == 'downloading' && statusB != 'downloading') return -1;
       if (statusA != 'downloading' && statusB == 'downloading') return 1;
       return 0;
@@ -119,7 +89,7 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
   @override
   void onDataLoaded(dynamic data) {
     setState(() {
-      _queueItems = data as List<Map<String, dynamic>>;
+      _queueItems = (data as List).cast<ArrQueueItem>();
     });
   }
 
@@ -229,25 +199,24 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
     );
   }
 
-  Widget _buildQueueItemCard(Map<String, dynamic> item) {
-    final String source = item['source'];
-    final String title = item['title'] ?? 'Unknown';
-    final String status = item['status'] ?? 'unknown';
-    final String? trackedDownloadStatus = item['trackedDownloadStatus'];
-    final List<dynamic>? statusMessages = item['statusMessages'];
-    final String? errorMessage = item['errorMessage'];
-    final double size = (item['size'] ?? 0).toDouble();
-    final double sizeleft = (item['sizeleft'] ?? 0).toDouble();
-    final String? timeLeft = item['timeleft'];
-    final String protocol = item['protocol'] ?? 'unknown';
-    final String? downloadClient = item['downloadClient'];
-    final String? indexer = item['indexer'];
-    final List<dynamic>? customFormats = item['customFormats'];
-    final int cfScore = item['customFormatScore'] ?? 0;
-    final List<dynamic>? languages = item['languages'];
-    final String? addedDate = item['added'];
+  Widget _buildQueueItemCard(ArrQueueItem item) {
+    final title = item.title ?? 'Unknown';
+    final status = item.status ?? 'unknown';
+    final trackedDownloadStatus = item.trackedDownloadStatus;
+    final statusMessages = item.statusMessages;
+    final errorMessage = item.errorMessage;
+    final size = item.size ?? 0.0;
+    final sizeleft = item.sizeleft ?? 0.0;
+    final timeLeft = item.timeleft;
+    final protocol = item.protocol ?? 'unknown';
+    final downloadClient = item.downloadClient;
+    final indexer = item.indexer;
+    final customFormats = item.customFormats;
+    final cfScore = item.customFormatScore ?? 0;
+    final languages = item.languages;
+    final addedDate = item.added;
+    final quality = item.quality?.quality?.name ?? 'Unknown Quality';
 
-    // Calculate age
     int? ageInDays;
     if (addedDate != null) {
       try {
@@ -258,33 +227,28 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
       }
     }
 
-    // Calculate progress
     final progress = size > 0 ? ((size - sizeleft) / size) : 0.0;
     final downloaded = size - sizeleft;
 
-    // Manual import only available when files are actually downloaded
-    // Available for: completed downloads, or downloads with warnings/errors (files present but need manual matching)
     final canManualImport =
         status == 'completed' ||
         trackedDownloadStatus == 'warning' ||
         trackedDownloadStatus == 'error';
 
-    // Get episode info for TV shows
+    // Episode info for TV shows
     String? episodeInfo;
-    if (source == 'sonarr' && item['episode'] != null) {
-      final episode = item['episode'];
-      final seasonNum = episode['seasonNumber'];
-      final episodeNum = episode['episodeNumber'];
-      episodeInfo =
-          'S${seasonNum.toString().padLeft(2, '0')}E${episodeNum.toString().padLeft(2, '0')}';
-    } else if (source == 'sonarr' && item['seasonNumber'] != null) {
-      // Fallback to top-level season/episode if episode object not present
-      final seasonNum = item['seasonNumber'];
-      episodeInfo = 'Season $seasonNum';
+    if (item.isSonarr) {
+      final sonarrItem = item as SonarrQueueItem;
+      if (sonarrItem.episode != null) {
+        final ep = sonarrItem.episode!;
+        final seasonNum = ep.seasonNumber;
+        final episodeNum = ep.episodeNumber;
+        episodeInfo =
+            'S${seasonNum.toString().padLeft(2, '0')}E${episodeNum.toString().padLeft(2, '0')}';
+      } else if (sonarrItem.seasonNumber != null) {
+        episodeInfo = 'Season ${sonarrItem.seasonNumber}';
+      }
     }
-
-    // Get quality info
-    final quality = item['quality']?['quality']?['name'] ?? 'Unknown Quality';
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
@@ -298,11 +262,10 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
             children: [
               Row(
                 children: [
-                  // Source indicator
                   Icon(
-                    source == 'sonarr' ? Icons.tv : Icons.movie,
+                    item.isSonarr ? Icons.tv : Icons.movie,
                     size: 20,
-                    color: source == 'sonarr' ? Colors.blue : Colors.red,
+                    color: item.isSonarr ? Colors.blue : Colors.red,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -332,7 +295,6 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
                     ),
                   ),
                   _buildStatusChip(status, trackedDownloadStatus),
-                  // Delete button
                   IconButton(
                     icon: const Icon(Icons.delete_outline, size: 20),
                     onPressed: () => _confirmRemoveQueueItem(item),
@@ -342,10 +304,6 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
                   ),
                 ],
               ),
-              // Warning/error messages banner
-              // Show when either:
-              // 1. trackedDownloadStatus is warning with statusMessages
-              // 2. status is warning with errorMessage (even if trackedDownloadStatus is ok)
               if ((trackedDownloadStatus == 'warning' &&
                       statusMessages != null &&
                       statusMessages.isNotEmpty) ||
@@ -369,7 +327,6 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Show errorMessage if present
                             if (errorMessage != null && errorMessage.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 2),
@@ -381,15 +338,14 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
                                   ),
                                 ),
                               ),
-                            // Show statusMessages if present
                             if (statusMessages != null &&
                                 statusMessages.isNotEmpty)
-                              for (var msg in statusMessages)
-                                ...((msg['messages'] as List?) ?? []).map(
+                              for (final msg in statusMessages)
+                                ...(msg.messages ?? []).map(
                                   (m) => Padding(
                                     padding: const EdgeInsets.only(bottom: 2),
                                     child: Text(
-                                      m.toString(),
+                                      m,
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: Colors.amber[900],
@@ -413,7 +369,6 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
                 ),
               ],
               const SizedBox(height: 12),
-              // Progress bar
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
@@ -501,9 +456,7 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
                         Icon(Icons.language, size: 14, color: Colors.grey[600]),
                         const SizedBox(width: 4),
                         Text(
-                          languages
-                              .map((l) => l['name'] ?? 'Unknown')
-                              .join(', '),
+                          languages.map((l) => l.name ?? 'Unknown').join(', '),
                           style: TextStyle(
                             fontSize: 13,
                             color: Colors.grey[600],
@@ -575,17 +528,16 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
                     ),
                 ],
               ),
-              // Custom formats
               if (customFormats != null && customFormats.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
                   runSpacing: 4,
                   children: [
-                    for (var format in customFormats)
+                    for (final format in customFormats)
                       Chip(
                         label: Text(
-                          format['name'] ?? 'Unknown',
+                          format.name ?? 'Unknown',
                           style: const TextStyle(fontSize: 11),
                         ),
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -606,7 +558,6 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
     Color backgroundColor;
     String displayText;
 
-    // Priority: trackedDownloadStatus (warning) > status
     if (trackedDownloadStatus == 'warning') {
       backgroundColor = Colors.amber;
       displayText = 'Warning';
@@ -669,7 +620,6 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
   }
 
   String _formatTimeLeft(String timeLeft) {
-    // timeLeft is in format like "00:15:30" (HH:MM:SS)
     final parts = timeLeft.split(':');
     if (parts.length != 3) return timeLeft;
 
@@ -677,13 +627,9 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
     final minutes = int.tryParse(parts[1]) ?? 0;
     final seconds = int.tryParse(parts[2]) ?? 0;
 
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    } else if (minutes > 0) {
-      return '${minutes}m ${seconds}s';
-    } else {
-      return '${seconds}s';
-    }
+    if (hours > 0) return '${hours}h ${minutes}m';
+    if (minutes > 0) return '${minutes}m ${seconds}s';
+    return '${seconds}s';
   }
 
   String _formatBytes(int bytes) {
@@ -695,10 +641,10 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 
-  Future<void> _showManualImportDialog(Map<String, dynamic> item) async {
-    final String source = item['source'];
-    final String? downloadId = item['downloadId'];
-    final String title = item['title'] ?? 'Unknown';
+  Future<void> _showManualImportDialog(ArrQueueItem item) async {
+    final source = item.isSonarr ? 'sonarr' : 'radarr';
+    final downloadId = item.downloadId;
+    final title = item.title ?? 'Unknown';
 
     if (downloadId == null) {
       ScaffoldMessenger.of(
@@ -718,16 +664,14 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
       ),
     );
 
-    // Refresh queue if import was successful
     if (result == true && mounted) {
       unawaited(loadData(forceRefresh: true));
     }
   }
 
-  Future<void> _confirmRemoveQueueItem(Map<String, dynamic> item) async {
-    final String title = item['title'] ?? 'Unknown';
-    final String source = item['source'];
-    final int? itemId = item['id'];
+  Future<void> _confirmRemoveQueueItem(ArrQueueItem item) async {
+    final title = item.title ?? 'Unknown';
+    final itemId = item.id;
 
     if (itemId == null) {
       ScaffoldMessenger.of(
@@ -769,7 +713,6 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
     if (confirmed != true) return;
 
     try {
-      // Show loading indicator
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -789,8 +732,7 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
         );
       }
 
-      // Remove from appropriate service
-      if (source == 'sonarr') {
+      if (item.isSonarr) {
         await _sonarr.removeQueueItem(itemId);
       } else {
         await _radarr.removeQueueItem(itemId);
@@ -804,8 +746,6 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
             backgroundColor: Colors.green,
           ),
         );
-
-        // Refresh the queue
         unawaited(loadData(forceRefresh: true));
       }
     } catch (e) {

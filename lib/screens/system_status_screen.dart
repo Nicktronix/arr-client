@@ -7,6 +7,7 @@ import 'package:arr_client/services/app_state_manager.dart';
 import 'package:arr_client/utils/error_formatter.dart';
 import 'package:arr_client/di/injection.dart';
 import 'package:arr_client/config/app_config.dart';
+import 'package:arr_client/models/shared/health.dart';
 
 class SystemStatusScreen extends StatefulWidget {
   const SystemStatusScreen({super.key});
@@ -25,8 +26,8 @@ class _SystemStatusScreenState extends State<SystemStatusScreen> {
   String? _sonarrError;
   String? _radarrError;
 
-  List<dynamic> _sonarrHealth = [];
-  List<dynamic> _radarrHealth = [];
+  List<HealthResource> _sonarrHealth = [];
+  List<HealthResource> _radarrHealth = [];
 
   @override
   void initState() {
@@ -355,7 +356,7 @@ class _SystemStatusScreenState extends State<SystemStatusScreen> {
     );
   }
 
-  Widget _buildHealthCard(String service, List<dynamic> healthItems) {
+  Widget _buildHealthCard(String service, List<HealthResource> healthItems) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -397,9 +398,8 @@ class _SystemStatusScreenState extends State<SystemStatusScreen> {
               )
             else
               ...healthItems.map((item) {
-                final type =
-                    (item['type'] as String?)?.toLowerCase() ?? 'unknown';
-                final message = item['message'] ?? 'No details';
+                final type = item.type?.toLowerCase() ?? 'unknown';
+                final message = item.message ?? 'No details';
 
                 Color color;
                 IconData icon;
@@ -427,7 +427,7 @@ class _SystemStatusScreenState extends State<SystemStatusScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(message, style: TextStyle(color: color)),
-                            if (item['wikiUrl'] != null)
+                            if (item.wikiUrl != null)
                               Text(
                                 'More info available',
                                 style: TextStyle(

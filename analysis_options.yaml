@@ -2,17 +2,15 @@ include: package:very_good_analysis/analysis_options.yaml
 
 analyzer:
   language:
-    # Strict type checks re-enable after typed models migration (#46).
-    strict-casts: false
-    strict-inference: false
-    strict-raw-types: false
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
 
 linter:
   rules:
     # Project convention: no docstrings (see CLAUDE.md)
     public_member_api_docs: false
 
-    # Blocked on typed models migration (#46) — Map<String, dynamic> throughout
     avoid_dynamic_calls: false
 
     # Dart convention recommends relative imports within a package;

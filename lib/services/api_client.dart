@@ -62,7 +62,7 @@ class ApiClient {
             'Connection error: ${_sanitizeMessage(e.message)}',
           );
         }
-        await Future.delayed(Duration(seconds: attempt + 1));
+        await Future<void>.delayed(Duration(seconds: attempt + 1));
         attempt++;
       } catch (e) {
         throw ApiException('Network error: ${_sanitizeMessage(e.toString())}');
@@ -77,6 +77,39 @@ class ApiClient {
           .get(Uri.parse(_url(endpoint)), headers: _headers)
           .timeout(timeout ?? _timeout),
     );
+  }
+
+  /// GET a single object, decoded via [fromJson].
+  Future<T> getObject<T>(
+    String endpoint,
+    T Function(Map<String, dynamic>) fromJson, {
+    Duration? timeout,
+  }) async {
+    final data = await get(endpoint, timeout: timeout);
+    return fromJson(data as Map<String, dynamic>);
+  }
+
+  /// GET a list, each element decoded via [fromJson].
+  Future<List<T>> getList<T>(
+    String endpoint,
+    T Function(Map<String, dynamic>) fromJson, {
+    Duration? timeout,
+  }) async {
+    final data = await get(endpoint, timeout: timeout);
+    return (data as List)
+        .map((e) => fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// GET a paged response and unwrap `records`, each element decoded via [fromJson].
+  Future<List<T>> getPagedList<T>(
+    String endpoint,
+    T Function(Map<String, dynamic>) fromJson, {
+    Duration? timeout,
+  }) async {
+    final data = await get(endpoint, timeout: timeout) as Map<String, dynamic>;
+    final records = (data['records'] as List?) ?? [];
+    return records.map((e) => fromJson(e as Map<String, dynamic>)).toList();
   }
 
   /// Make a POST request to the API
@@ -146,17 +179,17 @@ class ApiClient {
 
         if (errorBody is Map) {
           errorMessage =
-              errorBody['message'] ??
-              errorBody['error'] ??
-              errorBody['errorMessage'] ??
+              errorBody['message'] as String? ??
+              errorBody['error'] as String? ??
+              errorBody['errorMessage'] as String? ??
               errorMessage;
         } else if (errorBody is List && errorBody.isNotEmpty) {
           final first = errorBody.first;
           if (first is Map) {
             errorMessage =
-                first['errorMessage'] ??
-                first['message'] ??
-                first['error'] ??
+                first['errorMessage'] as String? ??
+                first['message'] as String? ??
+                first['error'] as String? ??
                 errorMessage;
           }
         }
