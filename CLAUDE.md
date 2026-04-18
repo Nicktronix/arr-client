@@ -37,7 +37,7 @@ Mixin for all data-loading screens. Provides the standard loading → loaded/err
 **Service layer** (`SonarrService`, `RadarrService`)
 Singleton API clients that listen to `AppStateManager` and auto-reset their `ApiClient` when the active instance changes. Lazy initialisation on first use.
 
-**No typed models** — API responses use `Map<String, dynamic>` and `List<dynamic>` throughout. The only exception is `ServiceInstance` for credential management.
+**Typed models** — API responses use `freezed` + `json_serializable` models under `lib/models/`. History, queue, release search, and manual import screens convert typed results to `Map<String, dynamic>` via `.toJson()` at the boundary to preserve complex existing card-builder code. `ServiceInstance` remains the only model outside `lib/models/`.
 
 ---
 

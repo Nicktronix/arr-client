@@ -81,11 +81,14 @@ class InstanceManager {
     final jsonString = _prefs.getString(key);
     if (jsonString == null) return [];
 
-    final List<dynamic> jsonList = jsonDecode(jsonString);
+    final jsonList = jsonDecode(jsonString) as List<dynamic>;
     final instances = <ServiceInstance>[];
 
     for (var json in jsonList) {
-      final instance = await _loadInstanceCredentials(json, serviceType);
+      final instance = await _loadInstanceCredentials(
+        json as Map<String, dynamic>,
+        serviceType,
+      );
       instances.add(instance);
     }
 
@@ -99,7 +102,9 @@ class InstanceManager {
         : _radarrInstancesKey;
     final jsonString = _prefs.getString(key);
     if (jsonString == null) return [];
-    return List<Map<String, dynamic>>.from(jsonDecode(jsonString));
+    return List<Map<String, dynamic>>.from(
+      jsonDecode(jsonString) as List<dynamic>,
+    );
   }
 
   Future<List<ServiceInstance>> getSonarrInstances() async {

@@ -83,7 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _openSettings() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const SettingsScreen()),
+      MaterialPageRoute<void>(builder: (context) => const SettingsScreen()),
     );
     // Instance changes are handled by listener
   }

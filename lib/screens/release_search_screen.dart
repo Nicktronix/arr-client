@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:arr_client/models/shared/arr_release.dart';
+import 'package:arr_client/models/sonarr/release.dart';
+import 'package:arr_client/models/radarr/release.dart';
 import 'package:arr_client/services/sonarr_service.dart';
 import 'package:arr_client/services/radarr_service.dart';
 import 'package:arr_client/services/app_state_manager.dart';
@@ -18,8 +21,8 @@ class ReleaseSearchScreen extends StatefulWidget {
   final int? movieId;
   final String? movieTitle;
 
-  // Common
-  final List<dynamic>? releases;
+  // Pre-loaded releases (optional — screen fetches its own if null)
+  final List<ArrRelease>? releases;
 
   const ReleaseSearchScreen({
     super.key,
@@ -39,7 +42,7 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
   final SonarrService _sonarr = getIt<SonarrService>();
   final RadarrService _radarr = getIt<RadarrService>();
 
-  List<dynamic>? _releases;
+  List<ArrRelease>? _releases;
   bool _isLoading = false;
   String? _error;
   String? _instanceIdOnLoad;
@@ -72,7 +75,6 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
   }
 
   void _onInstanceChanged() {
-    // If instance changed, return to previous screen
     final currentInstanceId = _isMovie
         ? AppConfig.activeRadarrInstanceId
         : AppConfig.activeSonarrInstanceId;
@@ -94,11 +96,10 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     });
 
     try {
-      List<dynamic> releases;
+      final List<ArrRelease> releases;
       if (_isMovie) {
         releases = await _radarr.searchMovieReleases(widget.movieId!);
       } else {
-        // This shouldn't happen as episodes always pass releases
         releases = [];
       }
 
@@ -114,49 +115,31 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     }
   }
 
-  List<dynamic> get _filteredAndSortedReleases {
+  List<ArrRelease> get _filteredAndSortedReleases {
     if (_releases == null) return [];
-    var releases = List<dynamic>.from(_releases!);
+    var releases = List<ArrRelease>.from(_releases!);
 
-    // Apply filters
     if (_filterMode == 'no_issues') {
-      releases = releases.where((r) {
-        final rejections = r['rejections'] as List?;
-        return rejections == null || rejections.isEmpty;
-      }).toList();
+      releases = releases
+          .where((r) => r.rejections == null || r.rejections!.isEmpty)
+          .toList();
     }
 
-    // Apply season pack filter (only for episodes, not movies)
     if (_showSeasonPacksOnly && !_isMovie) {
-      releases = releases.where((r) {
-        final fullSeason = r['fullSeason'] ?? false;
-        return fullSeason;
-      }).toList();
+      releases = releases
+          .where((r) => (r as SonarrRelease).fullSeason == true)
+          .toList();
     }
 
-    // Apply sorting
     releases.sort((a, b) {
-      var comparison = 0;
-
-      switch (_sortBy) {
-        case 'seeders':
-          final aSeeders = a['seeders'] ?? 0;
-          final bSeeders = b['seeders'] ?? 0;
-          comparison = aSeeders.compareTo(bSeeders);
-        case 'quality':
-          final aWeight = a['qualityWeight'] ?? 0;
-          final bWeight = b['qualityWeight'] ?? 0;
-          comparison = aWeight.compareTo(bWeight);
-        case 'size':
-          final aSize = a['size'] ?? 0;
-          final bSize = b['size'] ?? 0;
-          comparison = aSize.compareTo(bSize);
-        case 'cf_score':
-          final aScore = a['customFormatScore'] ?? 0;
-          final bScore = b['customFormatScore'] ?? 0;
-          comparison = aScore.compareTo(bScore);
-      }
-
+      final comparison = switch (_sortBy) {
+        'seeders' => (a.seeders ?? 0).compareTo(b.seeders ?? 0),
+        'quality' => (a.qualityWeight ?? 0).compareTo(b.qualityWeight ?? 0),
+        'size' => (a.size ?? 0).compareTo(b.size ?? 0),
+        'cf_score' =>
+          (a.customFormatScore ?? 0).compareTo(b.customFormatScore ?? 0),
+        _ => 0,
+      };
       return _sortDescending ? -comparison : comparison;
     });
 
@@ -282,7 +265,6 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
               if (selected) setState(() => _filterMode = 'no_issues');
             },
           ),
-          // Season packs filter only for episodes
           if (!_isMovie)
             FilterChip(
               label: const Text('Season Packs Only'),
@@ -357,19 +339,20 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     );
   }
 
-  Widget _buildReleaseCard(Map<String, dynamic> release) {
-    final String title = release['title'] ?? 'Unknown';
-    final int seeders = release['seeders'] ?? 0;
-    final int leechers = release['leechers'] ?? 0;
-    final String quality = release['quality']?['quality']?['name'] ?? 'Unknown';
-    final int size = release['size'] ?? 0;
+  Widget _buildReleaseCard(ArrRelease release) {
+    final title = release.title ?? 'Unknown';
+    final seeders = release.seeders ?? 0;
+    final leechers = release.leechers ?? 0;
+    final quality = release.quality?.quality?.name ?? 'Unknown';
+    final size = release.size ?? 0;
     final sizeStr = _formatBytes(size);
-    final String indexer = release['indexer'] ?? 'Unknown';
-    final int cfScore = release['customFormatScore'] ?? 0;
-    final List<dynamic>? rejections = release['rejections'];
+    final indexer = release.indexer ?? 'Unknown';
+    final cfScore = release.customFormatScore ?? 0;
+    final rejections = release.rejections;
     final isRejected = rejections != null && rejections.isNotEmpty;
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final hasUnknownMatch = _hasUnknownMatch(release);
+    final sonarrRelease = _isMovie ? null : release as SonarrRelease;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
@@ -416,27 +399,25 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
                 spacing: 12,
                 runSpacing: 4,
                 children: [
-                  // Show warning for unknown matches
                   if (hasUnknownMatch)
                     _buildInfoChip(
                       Icons.warning_amber,
                       'Unknown Match',
                       Colors.orange,
                     ),
-                  // Show season/episode info for series releases
-                  if (!_isMovie) ...[
-                    if (release['mappedEpisodeInfo'] != null &&
-                        (release['mappedEpisodeInfo'] as List).isNotEmpty) ...[
-                      for (var epInfo in release['mappedEpisodeInfo'])
+                  if (!_isMovie && sonarrRelease != null) ...[
+                    if (sonarrRelease.mappedEpisodeInfo != null &&
+                        sonarrRelease.mappedEpisodeInfo!.isNotEmpty)
+                      for (final epInfo in sonarrRelease.mappedEpisodeInfo!)
                         _buildInfoChip(
                           Icons.live_tv,
-                          'S${epInfo['seasonNumber']}E${epInfo['episodeNumber']}',
+                          'S${epInfo.seasonNumber}E${epInfo.episodeNumber}',
                           Colors.teal,
-                        ),
-                    ] else if (release['fullSeason'] == true)
+                        )
+                    else if (sonarrRelease.fullSeason == true)
                       _buildInfoChip(
                         Icons.tv,
-                        'Season ${release['mappedSeasonNumber'] ?? release['seasonNumber'] ?? '?'}',
+                        'Season ${sonarrRelease.mappedSeasonNumber ?? sonarrRelease.seasonNumber ?? '?'}',
                         Colors.teal,
                       ),
                   ],
@@ -457,10 +438,7 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
                 Wrap(
                   spacing: 4,
                   runSpacing: 4,
-                  children: rejections.map((rejection) {
-                    final String reason = rejection is Map
-                        ? (rejection['reason'] ?? 'Rejected')
-                        : rejection.toString();
+                  children: rejections.map((reason) {
                     return Chip(
                       label: Text(
                         reason,
@@ -518,44 +496,41 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 
-  bool _hasUnknownMatch(Map<String, dynamic> release) {
+  bool _hasUnknownMatch(ArrRelease release) {
     if (_isMovie) {
-      // For movies, check if mappedMovieId is missing or 0
-      return release['mappedMovieId'] == null || release['mappedMovieId'] == 0;
+      final r = release as RadarrRelease;
+      return r.mappedMovieId == null || r.mappedMovieId == 0;
     } else {
-      // For series, check if mappedEpisodeInfo is missing or empty (excluding season packs)
-      return (release['mappedEpisodeInfo'] == null ||
-              (release['mappedEpisodeInfo'] as List).isEmpty) &&
-          release['fullSeason'] != true;
+      final r = release as SonarrRelease;
+      return (r.mappedEpisodeInfo?.isEmpty ?? true) && r.fullSeason != true;
     }
   }
 
-  Future<void> _showReleaseDetails(Map<String, dynamic> release) async {
-    final String title = release['title'] ?? 'Unknown';
-    final String quality = release['quality']?['quality']?['name'] ?? 'Unknown';
-    final int size = release['size'] ?? 0;
-    final int seeders = release['seeders'] ?? 0;
-    final int leechers = release['leechers'] ?? 0;
-    final String indexer = release['indexer'] ?? 'Unknown';
-    final int cfScore = release['customFormatScore'] ?? 0;
-    final int age = release['age'] ?? 0;
-    final List<dynamic>? rejections = release['rejections'];
+  Future<void> _showReleaseDetails(ArrRelease release) async {
+    final title = release.title ?? 'Unknown';
+    final quality = release.quality?.quality?.name ?? 'Unknown';
+    final size = release.size ?? 0;
+    final seeders = release.seeders ?? 0;
+    final leechers = release.leechers ?? 0;
+    final indexer = release.indexer ?? 'Unknown';
+    final cfScore = release.customFormatScore ?? 0;
+    final age = release.age ?? 0;
+    final rejections = release.rejections;
     final isRejected = rejections != null && rejections.isNotEmpty;
-    final String? releaseGroup = release['releaseGroup'];
-    final String? protocol = release['protocol'];
-    final String? edition = release['edition'];
-    final String? publishDate = release['publishDate'];
-    final List<dynamic>? languages = release['languages'];
-    final List<dynamic>? customFormats = release['customFormats'];
+    final releaseGroup = release.releaseGroup;
+    final protocol = release.protocol;
+    final publishDate = release.publishDate;
+    final languages = release.languages;
+    final customFormats = release.customFormats;
+    final sonarrRelease = _isMovie ? null : release as SonarrRelease;
+    final radarrRelease = _isMovie ? release as RadarrRelease : null;
 
-    // Check if release has series/movie matching issues
     final hasUnknownSeries = !_isMovie && _hasUnknownMatch(release);
     final hasUnknownMovie = _isMovie && _hasUnknownMatch(release);
     final hasMatchingIssues =
         hasUnknownSeries ||
         hasUnknownMovie ||
-        (rejections?.any((r) {
-              final reason = r is Map ? (r['reason'] ?? '') : r.toString();
+        (rejections?.any((reason) {
               return reason.toLowerCase().contains('unknown') ||
                   reason.toLowerCase().contains('series') ||
                   reason.toLowerCase().contains('movie');
@@ -573,7 +548,6 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
             children: [
               Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 16),
-              // Warning for matching issues
               if (hasMatchingIssues) ...[
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -620,7 +594,6 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
                 ),
                 const SizedBox(height: 16),
               ],
-              // Common fields (both series and movies)
               _buildDetailRow('Quality', quality),
               if (releaseGroup != null && releaseGroup.isNotEmpty)
                 _buildDetailRow('Release Group', releaseGroup),
@@ -630,7 +603,7 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
               if (languages != null && languages.isNotEmpty)
                 _buildDetailRow(
                   'Languages',
-                  languages.map((l) => l['name'] ?? 'Unknown').join(', '),
+                  languages.map((l) => l.name ?? 'Unknown').join(', '),
                 ),
               _buildDetailRow('Indexer', indexer),
               _buildDetailRow('Seeders', '$seeders'),
@@ -638,7 +611,6 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
               _buildDetailRow('Age', '$age days'),
               if (publishDate != null)
                 _buildDetailRow('Published', _formatPublishDate(publishDate)),
-              // Custom formats section (common)
               if (customFormats != null && customFormats.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 const Text(
@@ -650,10 +622,10 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
                   spacing: 6,
                   runSpacing: 4,
                   children: [
-                    for (var format in customFormats)
+                    for (final format in customFormats)
                       Chip(
                         label: Text(
-                          format['name'] ?? 'Unknown',
+                          format.name ?? 'Unknown',
                           style: const TextStyle(fontSize: 11),
                         ),
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -667,26 +639,31 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
               ] else
                 _buildDetailRow('Custom Format Score', '$cfScore'),
               // Type-specific fields
-              if (!_isMovie && release['mappedEpisodeInfo'] != null) ...[
-                const SizedBox(height: 12),
-                const Text(
-                  'Episodes:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                for (var epInfo in release['mappedEpisodeInfo'])
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(
-                      '• S${epInfo['seasonNumber']}E${epInfo['episodeNumber']}: ${epInfo['title'] ?? 'Unknown'}',
-                      style: TextStyle(color: Colors.grey[700]),
-                    ),
+              if (!_isMovie && sonarrRelease != null) ...[
+                if (sonarrRelease.mappedEpisodeInfo != null) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Episodes:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
+                  const SizedBox(height: 8),
+                  for (final epInfo in sonarrRelease.mappedEpisodeInfo!)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        '• S${epInfo.seasonNumber}E${epInfo.episodeNumber}: ${epInfo.title ?? 'Unknown'}',
+                        style: TextStyle(color: Colors.grey[700]),
+                      ),
+                    ),
+                ],
+                if (sonarrRelease.fullSeason == true)
+                  _buildDetailRow('Type', 'Full Season Pack'),
               ],
-              if (!_isMovie && release['fullSeason'] == true)
-                _buildDetailRow('Type', 'Full Season Pack'),
-              if (_isMovie && edition != null && edition.isNotEmpty)
-                _buildDetailRow('Edition', edition),
+              if (_isMovie && radarrRelease != null) ...[
+                if (radarrRelease.edition != null &&
+                    radarrRelease.edition!.isNotEmpty)
+                  _buildDetailRow('Edition', radarrRelease.edition!),
+              ],
               if (isRejected) ...[
                 const SizedBox(height: 12),
                 const Text(
@@ -697,11 +674,11 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                for (var rejection in rejections)
+                for (final reason in rejections)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
-                      '• ${rejection is Map ? (rejection['reason'] ?? 'Rejected') : rejection.toString()}',
+                      '• $reason',
                       style: const TextStyle(color: Colors.red, fontSize: 13),
                     ),
                   ),
@@ -768,7 +745,7 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     );
   }
 
-  Future<void> _downloadRelease(Map<String, dynamic> release) async {
+  Future<void> _downloadRelease(ArrRelease release) async {
     try {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -788,19 +765,17 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
       );
 
       if (_isMovie) {
-        final downloadData = {
-          'guid': release['guid'],
-          'indexerId': release['indexerId'],
+        await _radarr.downloadRelease({
+          'guid': release.guid,
+          'indexerId': release.indexerId,
           'movieId': widget.movieId,
-        };
-        await _radarr.downloadRelease(downloadData);
+        });
       } else {
-        final downloadData = {
-          'guid': release['guid'],
-          'indexerId': release['indexerId'],
+        await _sonarr.downloadRelease({
+          'guid': release.guid,
+          'indexerId': release.indexerId,
           'episodeId': widget.episodeId,
-        };
-        await _sonarr.downloadRelease(downloadData);
+        });
       }
 
       if (mounted) {

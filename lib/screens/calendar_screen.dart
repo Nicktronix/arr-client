@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:arr_client/models/sonarr/series.dart';
+import 'package:arr_client/models/radarr/movie.dart';
 import 'package:arr_client/services/sonarr_service.dart';
 import 'package:arr_client/services/radarr_service.dart';
 import 'package:arr_client/services/app_state_manager.dart';
@@ -25,8 +27,8 @@ class _CalendarScreenState extends State<CalendarScreen>
   final AppStateManager _appState = getIt<AppStateManager>();
 
   late TabController _tabController;
-  List<dynamic> _sonarrCalendar = [];
-  List<dynamic> _radarrCalendar = [];
+  List<EpisodeResource> _sonarrCalendar = [];
+  List<MovieResource> _radarrCalendar = [];
   Map<int, String> _seriesTitles = {}; // seriesId -> title
   Map<int, String> _movieTitles = {}; // movieId -> title
   int _selectedDays = 7;
@@ -84,12 +86,11 @@ class _CalendarScreenState extends State<CalendarScreen>
           return;
         }
 
-        // Fetch series list first to get titles
         final seriesList = await _sonarr.getSeries();
         final titlesMap = <int, String>{};
-        for (var series in seriesList) {
-          if (series['id'] != null && series['title'] != null) {
-            titlesMap[series['id'] as int] = series['title'] as String;
+        for (final series in seriesList) {
+          if (series.id != null && series.title != null) {
+            titlesMap[series.id!] = series.title!;
           }
         }
 
@@ -113,12 +114,11 @@ class _CalendarScreenState extends State<CalendarScreen>
           return;
         }
 
-        // Fetch movies list first to get titles
         final moviesList = await _radarr.getMovies();
         final titlesMap = <int, String>{};
-        for (var movie in moviesList) {
-          if (movie['id'] != null && movie['title'] != null) {
-            titlesMap[movie['id'] as int] = movie['title'] as String;
+        for (final movie in moviesList) {
+          if (movie.id != null && movie.title != null) {
+            titlesMap[movie.id!] = movie.title!;
           }
         }
 
@@ -186,29 +186,21 @@ class _CalendarScreenState extends State<CalendarScreen>
       );
     }
 
-    return _buildSuccessBody();
+    return _tabController.index == 0
+        ? _buildEpisodeCalendar()
+        : _buildMovieCalendar();
   }
 
-  Widget _buildSuccessBody() {
-    final calendar = _tabController.index == 0
-        ? _sonarrCalendar
-        : _radarrCalendar;
-
-    if (calendar.isEmpty) {
+  Widget _buildEpisodeCalendar() {
+    if (_sonarrCalendar.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              _tabController.index == 0
-                  ? Icons.tv_off
-                  : Icons.movie_creation_outlined,
-              size: 64,
-              color: Colors.grey[400],
-            ),
+            Icon(Icons.tv_off, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
-              'No upcoming ${_tabController.index == 0 ? 'episodes' : 'movies'}',
+              'No upcoming episodes',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -225,24 +217,13 @@ class _CalendarScreenState extends State<CalendarScreen>
       );
     }
 
-    // Group by date
-    final grouped = <String, List<dynamic>>{};
-    for (var item in calendar) {
-      final dateStr = _tabController.index == 0
-          ? item['airDateUtc'] as String?
-          : item['physicalRelease'] as String? ??
-                item['digitalRelease'] as String? ??
-                item['inCinemas'] as String?;
-
+    final grouped = <String, List<EpisodeResource>>{};
+    for (final item in _sonarrCalendar) {
+      final dateStr = item.airDateUtc;
       if (dateStr == null) continue;
-
       final date = DateTime.parse(dateStr);
       final dateKey = DateFormat('yyyy-MM-dd').format(date.toLocal());
-
-      if (!grouped.containsKey(dateKey)) {
-        grouped[dateKey] = [];
-      }
-      grouped[dateKey]!.add(item);
+      grouped.putIfAbsent(dateKey, () => []).add(item);
     }
 
     final sortedDates = grouped.keys.toList()..sort();
@@ -261,10 +242,7 @@ class _CalendarScreenState extends State<CalendarScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 12,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                 child: Text(
                   _formatDateHeader(date),
                   style: TextStyle(
@@ -274,7 +252,78 @@ class _CalendarScreenState extends State<CalendarScreen>
                   ),
                 ),
               ),
-              ...items.map(_buildCalendarItem),
+              ...items.map(_buildEpisodeItem),
+              const SizedBox(height: 8),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMovieCalendar() {
+    if (_radarrCalendar.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.movie_creation_outlined, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'No upcoming movies',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Nothing scheduled for the next $_selectedDays days',
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final grouped = <String, List<MovieResource>>{};
+    for (final item in _radarrCalendar) {
+      final dateStr =
+          item.physicalRelease ?? item.digitalRelease ?? item.inCinemas;
+      if (dateStr == null) continue;
+      final date = DateTime.parse(dateStr);
+      final dateKey = DateFormat('yyyy-MM-dd').format(date.toLocal());
+      grouped.putIfAbsent(dateKey, () => []).add(item);
+    }
+
+    final sortedDates = grouped.keys.toList()..sort();
+
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(8),
+        itemCount: sortedDates.length,
+        itemBuilder: (context, index) {
+          final dateKey = sortedDates[index];
+          final items = grouped[dateKey]!;
+          final date = DateTime.parse(dateKey);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                child: Text(
+                  _formatDateHeader(date),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+              ...items.map(_buildMovieItem),
               const SizedBox(height: 8),
             ],
           );
@@ -298,22 +347,16 @@ class _CalendarScreenState extends State<CalendarScreen>
     }
   }
 
-  Widget _buildCalendarItem(dynamic item) {
-    return _tabController.index == 0
-        ? _buildEpisodeItem(item)
-        : _buildMovieItem(item);
-  }
-
-  Widget _buildEpisodeItem(Map<String, dynamic> episode) {
-    final seriesId = episode['seriesId'] as int?;
+  Widget _buildEpisodeItem(EpisodeResource episode) {
+    final seriesId = episode.seriesId;
     final seriesTitle = seriesId != null
         ? (_seriesTitles[seriesId] ?? 'Series #$seriesId')
         : 'Unknown Series';
-    final seasonNum = episode['seasonNumber'] ?? 0;
-    final episodeNum = episode['episodeNumber'] ?? 0;
-    final episodeTitle = episode['title'] ?? 'TBA';
-    final airDateUtc = episode['airDateUtc'] as String?;
-    final hasFile = episode['hasFile'] as bool? ?? false;
+    final seasonNum = episode.seasonNumber ?? 0;
+    final episodeNum = episode.episodeNumber ?? 0;
+    final episodeTitle = episode.title ?? 'TBA';
+    final airDateUtc = episode.airDateUtc;
+    final hasFile = episode.hasFile ?? false;
 
     var timeStr = '';
     if (airDateUtc != null) {
@@ -366,29 +409,28 @@ class _CalendarScreenState extends State<CalendarScreen>
     );
   }
 
-  Widget _buildMovieItem(Map<String, dynamic> movie) {
-    final movieId = movie['id'] as int?;
+  Widget _buildMovieItem(MovieResource movie) {
+    final movieId = movie.id;
     final title = movieId != null
-        ? (_movieTitles[movieId] ?? movie['title'] ?? 'Movie #$movieId')
-        : (movie['title'] ?? 'Unknown Movie');
-    final year = movie['year'] ?? '';
-    final hasFile = movie['hasFile'] as bool? ?? false;
-    final status = movie['status'] as String? ?? '';
+        ? (_movieTitles[movieId] ?? movie.title ?? 'Movie #$movieId')
+        : (movie.title ?? 'Unknown Movie');
+    final year = movie.year ?? '';
+    final hasFile = movie.hasFile ?? false;
+    final status = movie.status ?? '';
 
-    // Determine release date and type
     var releaseInfo = '';
     var timeStr = '';
 
-    if (movie['physicalRelease'] != null) {
-      final date = DateTime.parse(movie['physicalRelease']).toLocal();
+    if (movie.physicalRelease != null) {
+      final date = DateTime.parse(movie.physicalRelease!).toLocal();
       releaseInfo = 'Physical Release';
       timeStr = DateFormat('MMM d, h:mm a').format(date);
-    } else if (movie['digitalRelease'] != null) {
-      final date = DateTime.parse(movie['digitalRelease']).toLocal();
+    } else if (movie.digitalRelease != null) {
+      final date = DateTime.parse(movie.digitalRelease!).toLocal();
       releaseInfo = 'Digital Release';
       timeStr = DateFormat('MMM d, h:mm a').format(date);
-    } else if (movie['inCinemas'] != null) {
-      final date = DateTime.parse(movie['inCinemas']).toLocal();
+    } else if (movie.inCinemas != null) {
+      final date = DateTime.parse(movie.inCinemas!).toLocal();
       releaseInfo = 'In Cinemas';
       timeStr = DateFormat('MMM d, h:mm a').format(date);
     }

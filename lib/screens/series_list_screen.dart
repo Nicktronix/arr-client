@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:arr_client/models/sonarr/series.dart';
+import 'package:arr_client/models/shared/media_cover.dart';
 import 'package:arr_client/services/sonarr_service.dart';
 import 'package:arr_client/utils/cached_data_loader.dart';
 import 'package:arr_client/utils/error_formatter.dart';
@@ -19,7 +21,7 @@ class _SeriesListScreenState extends State<SeriesListScreen>
   final SonarrService _sonarr = getIt<SonarrService>();
   final TextEditingController _searchController = TextEditingController();
 
-  List<dynamic> _series = [];
+  List<SeriesResource> _series = [];
   bool _isSearching = false;
   String _searchQuery = '';
   String _sortBy = 'title_asc'; // title_asc, title_desc, added, year
@@ -67,7 +69,7 @@ class _SeriesListScreenState extends State<SeriesListScreen>
   void onDataLoaded(dynamic data) {
     if (mounted) {
       setState(() {
-        _series = data as List<dynamic>;
+        _series = data as List<SeriesResource>;
         _applySorting();
       });
     }
@@ -77,42 +79,42 @@ class _SeriesListScreenState extends State<SeriesListScreen>
     switch (_sortBy) {
       case 'title_desc':
         _series.sort((a, b) {
-          final titleA = (a['title'] ?? '').toString().toLowerCase();
-          final titleB = (b['title'] ?? '').toString().toLowerCase();
+          final titleA = (a.title ?? '').toLowerCase();
+          final titleB = (b.title ?? '').toLowerCase();
           return titleB.compareTo(titleA);
         });
       case 'added':
         _series.sort((a, b) {
-          final dateA = DateTime.tryParse(a['added'] ?? '') ?? DateTime(1900);
-          final dateB = DateTime.tryParse(b['added'] ?? '') ?? DateTime(1900);
+          final dateA = DateTime.tryParse(a.added ?? '') ?? DateTime(1900);
+          final dateB = DateTime.tryParse(b.added ?? '') ?? DateTime(1900);
           return dateB.compareTo(dateA); // Newest first
         });
       case 'year':
         _series.sort((a, b) {
-          final yearA = a['year'] ?? 0;
-          final yearB = b['year'] ?? 0;
+          final yearA = a.year ?? 0;
+          final yearB = b.year ?? 0;
           return yearB.compareTo(yearA); // Newest first
         });
       case 'title_asc':
       default:
         _series.sort((a, b) {
-          final titleA = (a['title'] ?? '').toString().toLowerCase();
-          final titleB = (b['title'] ?? '').toString().toLowerCase();
+          final titleA = (a.title ?? '').toLowerCase();
+          final titleB = (b.title ?? '').toLowerCase();
           return titleA.compareTo(titleB);
         });
     }
   }
 
-  List<dynamic> get _filteredSeries {
+  List<SeriesResource> get _filteredSeries {
     var filtered = _series;
 
     // Apply missing files filter
     if (_showMissingOnly) {
       filtered = filtered.where((series) {
-        final stats = series['statistics'];
+        final stats = series.statistics;
         if (stats == null) return false;
-        final episodeFileCount = stats['episodeFileCount'] ?? 0;
-        final episodeCount = stats['episodeCount'] ?? 0;
+        final episodeFileCount = stats.episodeFileCount ?? 0;
+        final episodeCount = stats.episodeCount ?? 0;
         return episodeFileCount < episodeCount; // Has missing episodes
       }).toList();
     }
@@ -121,9 +123,9 @@ class _SeriesListScreenState extends State<SeriesListScreen>
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
       filtered = filtered.where((series) {
-        final title = (series['title'] ?? '').toLowerCase();
-        final network = (series['network'] ?? '').toLowerCase();
-        final year = series['year']?.toString() ?? '';
+        final title = (series.title ?? '').toLowerCase();
+        final network = (series.network ?? '').toLowerCase();
+        final year = series.year?.toString() ?? '';
 
         return title.contains(query) ||
             network.contains(query) ||
@@ -391,24 +393,20 @@ class _SeriesListScreenState extends State<SeriesListScreen>
     );
   }
 
-  Widget _buildSeriesCard(Map<String, dynamic> series) {
-    final String title = series['title'] ?? 'Unknown Title';
-    final int year = series['year'] ?? 0;
-    final String status = series['status'] ?? 'unknown';
-    final seasonCount = (series['seasons'] as List?)?.length ?? 0;
-    final String network = series['network'] ?? 'Unknown Network';
-    final bool monitored = series['monitored'] ?? false;
-    final String? overview = series['overview'];
+  Widget _buildSeriesCard(SeriesResource series) {
+    final title = series.title ?? 'Unknown Title';
+    final year = series.year ?? 0;
+    final status = series.status ?? 'unknown';
+    final seasonCount = series.seasons?.length ?? 0;
+    final network = series.network ?? 'Unknown Network';
+    final monitored = series.monitored ?? false;
+    final overview = series.overview;
 
-    // Get poster image if available
-    final List<dynamic>? images = series['images'];
     String? posterUrl;
-    if (images != null) {
-      for (var image in images) {
-        if (image['coverType'] == 'poster') {
-          posterUrl = image['remoteUrl'];
-          break;
-        }
+    for (final image in series.images ?? <MediaCover>[]) {
+      if (image.coverType == 'poster') {
+        posterUrl = image.remoteUrl;
+        break;
       }
     }
 
@@ -422,7 +420,7 @@ class _SeriesListScreenState extends State<SeriesListScreen>
               context,
               MaterialPageRoute(
                 builder: (context) => SeriesDetailScreen(
-                  seriesId: series['id'],
+                  seriesId: series.id!,
                   seriesTitle: title,
                 ),
               ),

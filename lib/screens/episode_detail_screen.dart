@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:arr_client/models/shared/media_info.dart';
+import 'package:arr_client/models/sonarr/series.dart';
 import 'package:arr_client/services/sonarr_service.dart';
 import 'package:arr_client/services/app_state_manager.dart';
 import 'package:arr_client/config/app_config.dart';
@@ -30,8 +32,8 @@ class EpisodeDetailScreen extends StatefulWidget {
 
 class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
   final SonarrService _sonarr = getIt<SonarrService>();
-  Map<String, dynamic>? _episode;
-  Map<String, dynamic>? _episodeFile;
+  EpisodeResource? _episode;
+  EpisodeFileResource? _episodeFile;
   bool _isLoading = true;
   String? _error;
   String? _instanceIdOnLoad;
@@ -69,29 +71,30 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
     });
 
     try {
-      // Get all episodes for the series
       final allEpisodes = await _sonarr.getEpisodesBySeriesId(widget.seriesId);
 
-      // Find this specific episode
-      final episode = allEpisodes.firstWhere(
-        (ep) => ep['id'] == widget.episodeId,
-        orElse: () => throw Exception('Episode not found'),
-      );
+      final EpisodeResource episode;
+      try {
+        episode = allEpisodes.firstWhere((ep) => ep.id == widget.episodeId);
+      } catch (_) {
+        throw Exception('Episode not found');
+      }
 
-      Map<String, dynamic>? episodeFile;
+      EpisodeFileResource? episodeFile;
 
-      // If episode has a file, fetch file details
-      if (episode['hasFile'] == true && episode['episodeFileId'] != null) {
+      if (episode.hasFile == true && episode.episodeFileId != null) {
         try {
           final allFiles = await _sonarr.getEpisodeFilesBySeriesId(
             widget.seriesId,
           );
-          episodeFile = allFiles.firstWhere(
-            (file) => file['id'] == episode['episodeFileId'],
-            orElse: () => <String, dynamic>{},
-          );
+          try {
+            episodeFile = allFiles.firstWhere(
+              (file) => file.id == episode.episodeFileId,
+            );
+          } catch (_) {
+            // File not found in list, continue without file details
+          }
         } catch (e) {
-          // File fetch failed, continue without file details
           debugPrint('Failed to fetch episode file: $e');
         }
       }
@@ -116,12 +119,11 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
   Future<void> _toggleMonitoring() async {
     if (_episode == null) return;
 
-    final currentMonitored = _episode!['monitored'] ?? false;
+    final currentMonitored = _episode!.monitored ?? false;
 
     try {
-      // Optimistically update UI
       setState(() {
-        _episode!['monitored'] = !currentMonitored;
+        _episode = _episode!.copyWith(monitored: !currentMonitored);
       });
 
       await _sonarr.setEpisodesMonitored([
@@ -140,9 +142,8 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
         );
       }
     } catch (e) {
-      // Revert on error
       setState(() {
-        _episode!['monitored'] = currentMonitored;
+        _episode = _episode!.copyWith(monitored: currentMonitored);
       });
 
       if (mounted) {
@@ -204,13 +205,12 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
     if (confirmed != true) return;
 
     try {
-      await _sonarr.deleteEpisodeFile(_episodeFile!['id']);
+      await _sonarr.deleteEpisodeFile(_episodeFile!.id!);
 
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Episode file deleted')));
-        // Reload episode details
         unawaited(_loadEpisodeDetails());
       }
     } catch (e) {
@@ -226,7 +226,6 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
   }
 
   Future<void> _openInteractiveSearch() async {
-    // Show loading dialog
     unawaited(
       showDialog(
         context: context,
@@ -253,7 +252,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
       final releases = await _sonarr.searchEpisodeReleases(widget.episodeId);
 
       if (!mounted) return;
-      Navigator.pop(context); // Close loading dialog
+      Navigator.pop(context);
 
       if (releases.isEmpty) {
         ScaffoldMessenger.of(
@@ -262,27 +261,25 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
         return;
       }
 
-      // Navigate to release search screen
-      final result = await Navigator.push(
+      final result = await Navigator.push<dynamic>(
         context,
-        MaterialPageRoute(
+        MaterialPageRoute<dynamic>(
           builder: (context) => ReleaseSearchScreen(
             episodeId: widget.episodeId,
             episodeNumber: widget.episodeNumber,
             episodeTitle:
-                'S${widget.seasonNumber}E${widget.episodeNumber} - ${_episode?['title'] ?? 'Unknown'}',
+                'S${widget.seasonNumber}E${widget.episodeNumber} - ${_episode?.title ?? 'Unknown'}',
             releases: releases,
           ),
         ),
       );
 
-      // Reload episode details if a download was initiated
       if (result == true && mounted) {
         unawaited(_loadEpisodeDetails());
       }
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(context); // Close loading dialog
+      Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Search failed: ${ErrorFormatter.format(e)}'),
@@ -310,12 +307,12 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
           if (_episode != null)
             IconButton(
               icon: Icon(
-                _episode!['monitored'] == true
+                _episode!.monitored == true
                     ? Icons.visibility
                     : Icons.visibility_off,
               ),
               onPressed: _toggleMonitoring,
-              tooltip: _episode!['monitored'] == true
+              tooltip: _episode!.monitored == true
                   ? 'Disable monitoring'
                   : 'Enable monitoring',
             ),
@@ -332,7 +329,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
                 }
               },
               itemBuilder: (context) => [
-                if (_episode!['hasFile'] != true)
+                if (_episode!.hasFile != true)
                   const PopupMenuItem(
                     value: 'search',
                     child: Row(
@@ -353,7 +350,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
                     ],
                   ),
                 ),
-                if (_episode!['hasFile'] == true)
+                if (_episode!.hasFile == true)
                   const PopupMenuItem(
                     value: 'delete',
                     child: Row(
@@ -436,14 +433,14 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
   }
 
   Widget _buildEpisodeInfo() {
-    final String title = _episode!['title'] ?? 'TBA';
-    final String? overview = _episode!['overview'];
-    final String? airDateUtc = _episode!['airDateUtc'];
-    final int? runtime = _episode!['runtime'];
-    final bool monitored = _episode!['monitored'] ?? false;
-    final int? absoluteEpisodeNumber = _episode!['absoluteEpisodeNumber'];
-    final bool qualityCutoffNotMet =
-        _episodeFile?['qualityCutoffNotMet'] ?? false;
+    final title = _episode!.title ?? 'TBA';
+    final overview = _episode!.overview;
+    final airDateUtc = _episode!.airDateUtc;
+    final runtime = _episode!.runtime;
+    final monitored = _episode!.monitored ?? false;
+    final absoluteEpisodeNumber = _episode!.absoluteEpisodeNumber;
+    final qualityCutoffNotMet =
+        _episodeFile?.qualityCutoffNotMet ?? false;
 
     DateTime? airDate;
     if (airDateUtc != null) {
@@ -455,7 +452,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
     }
 
     final hasAired = airDate != null && airDate.isBefore(DateTime.now());
-    final bool hasFile = _episode!['hasFile'] ?? false;
+    final hasFile = _episode!.hasFile ?? false;
 
     return Card(
       child: Padding(
@@ -474,13 +471,11 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
               ],
             ),
             const Divider(height: 24),
-            // Title
             Text(
               title,
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 16),
-            // Status badges
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -506,7 +501,6 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            // Air date and runtime
             if (airDate != null) ...[
               _buildInfoRow(
                 Icons.calendar_today,
@@ -527,7 +521,6 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
               ),
               const SizedBox(height: 8),
             ],
-            // Overview
             if (overview != null && overview.isNotEmpty) ...[
               const SizedBox(height: 8),
               const Text(
@@ -551,16 +544,16 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
   }
 
   Widget _buildFileInfo() {
-    final String quality =
-        _episodeFile!['quality']?['quality']?['name'] ?? 'Unknown';
-    final int size = _episodeFile!['size'] ?? 0;
-    final String? dateAdded = _episodeFile!['dateAdded'];
-    final String? releaseGroup = _episodeFile!['releaseGroup'];
-    final List<dynamic>? languages = _episodeFile!['languages'];
-    final List<dynamic>? customFormats = _episodeFile!['customFormats'];
-    final int customFormatScore = _episodeFile!['customFormatScore'] ?? 0;
-    final Map<String, dynamic>? mediaInfo = _episodeFile!['mediaInfo'];
-    final String? relativePath = _episodeFile!['relativePath'];
+    final quality =
+        _episodeFile!.quality?.quality?.name ?? 'Unknown';
+    final size = _episodeFile!.size ?? 0;
+    final dateAdded = _episodeFile!.dateAdded;
+    final releaseGroup = _episodeFile!.releaseGroup;
+    final languages = _episodeFile!.languages;
+    final customFormats = _episodeFile!.customFormats;
+    final customFormatScore = _episodeFile!.customFormatScore ?? 0;
+    final mediaInfo = _episodeFile!.mediaInfo;
+    final relativePath = _episodeFile!.relativePath;
 
     DateTime? addedDate;
     if (dateAdded != null) {
@@ -588,10 +581,8 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
               ],
             ),
             const Divider(height: 24),
-            // Quality
             _buildInfoRow(Icons.high_quality, 'Quality', quality),
             const SizedBox(height: 8),
-            // Size and Date
             _buildInfoRow(Icons.storage, 'Size', _formatBytes(size)),
             if (addedDate != null) ...[
               const SizedBox(height: 8),
@@ -601,21 +592,18 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
                 _formatAirDate(addedDate),
               ),
             ],
-            // Release Group
             if (releaseGroup != null && releaseGroup.isNotEmpty) ...[
               const SizedBox(height: 8),
               _buildInfoRow(Icons.group, 'Release Group', releaseGroup),
             ],
-            // Languages
             if (languages != null && languages.isNotEmpty) ...[
               const SizedBox(height: 8),
               _buildInfoRow(
                 Icons.language,
                 'Languages',
-                languages.map((l) => l['name'] ?? 'Unknown').join(', '),
+                languages.map((l) => l.name ?? 'Unknown').join(', '),
               ),
             ],
-            // Custom Formats
             if (customFormats != null && customFormats.isNotEmpty) ...[
               const SizedBox(height: 12),
               const Text(
@@ -627,10 +615,10 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
                 spacing: 6,
                 runSpacing: 6,
                 children: [
-                  for (var format in customFormats)
+                  for (final format in customFormats)
                     Chip(
                       label: Text(
-                        format['name'] ?? 'Unknown',
+                        format.name ?? 'Unknown',
                         style: const TextStyle(fontSize: 11),
                       ),
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -647,7 +635,6 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
                 valueColor: customFormatScore >= 0 ? Colors.green : Colors.red,
               ),
             ],
-            // Media Info
             if (mediaInfo != null) ...[
               const SizedBox(height: 16),
               const Text(
@@ -657,7 +644,6 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
               const SizedBox(height: 8),
               _buildMediaInfoGrid(mediaInfo),
             ],
-            // File Path
             if (relativePath != null && relativePath.isNotEmpty) ...[
               const SizedBox(height: 16),
               const Text(
@@ -688,43 +674,38 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
     );
   }
 
-  Widget _buildMediaInfoGrid(Map<String, dynamic> mediaInfo) {
+  Widget _buildMediaInfoGrid(MediaInfoResource mediaInfo) {
     final items = <MapEntry<String, String>>[];
 
-    // Video info
-    if (mediaInfo['videoCodec'] != null) {
-      items.add(MapEntry('Video Codec', mediaInfo['videoCodec']));
+    if (mediaInfo.videoCodec != null) {
+      items.add(MapEntry('Video Codec', mediaInfo.videoCodec!));
     }
-    if (mediaInfo['resolution'] != null) {
-      items.add(MapEntry('Resolution', mediaInfo['resolution']));
+    if (mediaInfo.resolution != null) {
+      items.add(MapEntry('Resolution', mediaInfo.resolution!));
     }
-    if (mediaInfo['videoBitDepth'] != null) {
-      items.add(MapEntry('Bit Depth', '${mediaInfo['videoBitDepth']}-bit'));
+    if (mediaInfo.videoBitDepth != null) {
+      items.add(MapEntry('Bit Depth', '${mediaInfo.videoBitDepth}-bit'));
     }
-    if (mediaInfo['videoFps'] != null) {
-      items.add(MapEntry('Frame Rate', '${mediaInfo['videoFps']} fps'));
+    if (mediaInfo.videoFps != null) {
+      items.add(MapEntry('Frame Rate', '${mediaInfo.videoFps} fps'));
     }
-    if (mediaInfo['scanType'] != null) {
-      items.add(MapEntry('Scan Type', mediaInfo['scanType']));
+    if (mediaInfo.scanType != null) {
+      items.add(MapEntry('Scan Type', mediaInfo.scanType!));
     }
-
-    // Audio info
-    if (mediaInfo['audioCodec'] != null) {
-      items.add(MapEntry('Audio Codec', mediaInfo['audioCodec']));
+    if (mediaInfo.audioCodec != null) {
+      items.add(MapEntry('Audio Codec', mediaInfo.audioCodec!));
     }
-    if (mediaInfo['audioChannels'] != null) {
-      items.add(MapEntry('Audio Channels', '${mediaInfo['audioChannels']}.0'));
+    if (mediaInfo.audioChannels != null) {
+      items.add(MapEntry('Audio Channels', '${mediaInfo.audioChannels}'));
     }
-    if (mediaInfo['audioLanguages'] != null) {
-      items.add(MapEntry('Audio Lang', mediaInfo['audioLanguages']));
+    if (mediaInfo.audioLanguages != null) {
+      items.add(MapEntry('Audio Lang', mediaInfo.audioLanguages!));
     }
-
-    // Other
-    if (mediaInfo['runTime'] != null) {
-      items.add(MapEntry('Duration', mediaInfo['runTime']));
+    if (mediaInfo.runTime != null) {
+      items.add(MapEntry('Duration', mediaInfo.runTime!));
     }
-    if (mediaInfo['subtitles'] != null) {
-      items.add(MapEntry('Subtitles', mediaInfo['subtitles']));
+    if (mediaInfo.subtitles != null) {
+      items.add(MapEntry('Subtitles', mediaInfo.subtitles!));
     }
 
     return Wrap(
@@ -819,7 +800,6 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
     final diff = now.difference(date);
 
     if (diff.isNegative) {
-      // Future date
       final absDiff = date.difference(now);
       if (absDiff.inDays == 0) return 'Today';
       if (absDiff.inDays == 1) return 'Tomorrow';
@@ -827,7 +807,6 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
       return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     }
 
-    // Past date
     if (diff.inDays == 0) return 'Today';
     if (diff.inDays == 1) return 'Yesterday';
     if (diff.inDays < 7) return '${diff.inDays} days ago';
