@@ -60,6 +60,7 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
   Future<void> _loadExistingSeries() async {
     try {
       final series = await _sonarr.getSeries();
+      if (!mounted) return;
       setState(() {
         _existingSeries = series;
       });
@@ -79,11 +80,13 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
 
     try {
       final results = await _sonarr.searchSeries(query);
+      if (!mounted) return;
       setState(() {
         _searchResults = results;
         _isSearching = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = ErrorFormatter.format(e);
         _isSearching = false;

@@ -140,6 +140,7 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
         return pathA.compareTo(pathB);
       });
 
+      if (!mounted) return;
       setState(() {
         _importCandidates = candidates;
         _isLoading = false;
@@ -149,6 +150,7 @@ class _ManualImportScreenState extends State<ManualImportScreen> {
         }
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = ErrorFormatter.format(e);
         _isLoading = false;

@@ -60,6 +60,7 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
   Future<void> _loadExistingMovies() async {
     try {
       final movies = await _radarr.getMovies();
+      if (!mounted) return;
       setState(() {
         _existingMovies = movies;
       });
@@ -79,11 +80,13 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
 
     try {
       final results = await _radarr.searchMovies(query);
+      if (!mounted) return;
       setState(() {
         _searchResults = results;
         _isSearching = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = ErrorFormatter.format(e);
         _isSearching = false;

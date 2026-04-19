@@ -100,14 +100,16 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
       if (_isMovie) {
         releases = await _radarr.searchMovieReleases(widget.movieId!);
       } else {
-        releases = [];
+        releases = await _sonarr.searchEpisodeReleases(widget.episodeId!);
       }
 
+      if (!mounted) return;
       setState(() {
         _releases = releases;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = ErrorFormatter.format(e);
         _isLoading = false;
