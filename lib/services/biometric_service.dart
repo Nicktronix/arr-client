@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -138,6 +139,14 @@ class BiometricService {
     final timeout = await getTimeoutMinutes();
     if (timeout != timeoutNever) {
       _backgroundTime = DateTime.now();
+    }
+  }
+
+  /// Backdate _backgroundTime — test use only
+  @visibleForTesting
+  void backdateBackgroundTime(Duration by) {
+    if (_backgroundTime != null) {
+      _backgroundTime = _backgroundTime!.subtract(by);
     }
   }
 
