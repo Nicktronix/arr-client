@@ -98,24 +98,16 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     needs: analyze
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - name: Run OSV Scanner
+        uses: google/osv-scanner-action@v2
         with:
-          flutter-version: '3.41.2'
-          channel: 'stable'
-          cache: true
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Check for outdated packages
-        run: flutter pub outdated --show-all
-        continue-on-error: true
+          scan-args: |-
+            --lockfile=pubspec.lock
 
