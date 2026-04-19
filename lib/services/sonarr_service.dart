@@ -1,5 +1,17 @@
 import 'package:http/http.dart' as http;
 import 'package:injectable/injectable.dart';
+import 'package:arr_client/models/shared/disk_space.dart';
+import 'package:arr_client/models/shared/health.dart';
+import 'package:arr_client/models/shared/language.dart';
+import 'package:arr_client/models/shared/quality_profile.dart';
+import 'package:arr_client/models/shared/root_folder.dart';
+import 'package:arr_client/models/shared/tag.dart';
+import 'package:arr_client/models/sonarr/history_record.dart';
+import 'package:arr_client/models/sonarr/manual_import.dart';
+import 'package:arr_client/models/sonarr/queue_item.dart';
+import 'package:arr_client/models/sonarr/release.dart';
+import 'package:arr_client/models/sonarr/series.dart';
+import 'package:arr_client/models/sonarr/system_status.dart';
 import 'package:arr_client/services/api_client.dart';
 import 'package:arr_client/services/app_state_manager.dart';
 
@@ -39,64 +51,57 @@ class SonarrService {
     return _client!;
   }
 
-  /// Reset the API client (called automatically when instance changes)
   void reset() {
     _client?.close();
     _client = null;
   }
 
-  /// Get system status
-  Future<Map<String, dynamic>> getSystemStatus() async {
+  Future<SonarrSystemStatus> getSystemStatus() async {
     final client = await _api;
-    return await client.get('/system/status');
+    return client.getObject('/system/status', SonarrSystemStatus.fromJson);
   }
 
-  /// Get all series
-  Future<List<dynamic>> getSeries() async {
+  Future<List<SeriesResource>> getSeries() async {
     final client = await _api;
-    return await client.get('/series');
+    return client.getList('/series', SeriesResource.fromJson);
   }
 
-  /// Get series by ID
-  Future<Map<String, dynamic>> getSeriesById(int id) async {
-    if (id <= 0) {
-      throw ArgumentError('Invalid series ID: $id');
-    }
+  Future<SeriesResource> getSeriesById(int id) async {
+    if (id <= 0) throw ArgumentError('Invalid series ID: $id');
     final client = await _api;
-    return await client.get('/series/$id');
+    return client.getObject('/series/$id', SeriesResource.fromJson);
   }
 
-  /// Search for series
-  Future<List<dynamic>> searchSeries(String query) async {
+  Future<List<SeriesResource>> searchSeries(String query) async {
     final client = await _api;
-    return await client.get('/series/lookup?term=$query');
+    return client.getList(
+      '/series/lookup?term=$query',
+      SeriesResource.fromJson,
+    );
   }
 
-  /// Get calendar (upcoming episodes)
-  Future<List<dynamic>> getCalendar({DateTime? start, DateTime? end}) async {
+  Future<List<EpisodeResource>> getCalendar({
+    DateTime? start,
+    DateTime? end,
+  }) async {
     final client = await _api;
     var endpoint = '/calendar';
-
     if (start != null && end != null) {
       final startStr = start.toIso8601String().split('T')[0];
       final endStr = end.toIso8601String().split('T')[0];
       endpoint += '?start=$startStr&end=$endStr';
     }
-
-    return await client.get(endpoint);
+    return client.getList(endpoint, EpisodeResource.fromJson);
   }
 
-  /// Get queue (current downloads)
-  Future<Map<String, dynamic>> getQueue() async {
+  Future<List<SonarrQueueItem>> getQueue() async {
     final client = await _api;
-    return await client.get(
+    return client.getPagedList(
       '/queue?pageSize=500&sortKey=timeleft&sortDirection=ascending',
+      SonarrQueueItem.fromJson,
     );
   }
 
-  /// Remove item from queue
-  /// removeFromClient: Remove from download client (default true)
-  /// blocklist: Add to blocklist to prevent re-downloading (default false)
   Future<void> removeQueueItem(
     int id, {
     bool removeFromClient = true,
@@ -108,32 +113,24 @@ class SonarrService {
     );
   }
 
-  /// Add a new series
-  Future<Map<String, dynamic>> addSeries(
-    Map<String, dynamic> seriesData,
-  ) async {
+  Future<SeriesResource> addSeries(Map<String, dynamic> seriesData) async {
     final client = await _api;
-    return await client.post('/series', seriesData);
+    final data = await client.post('/series', seriesData);
+    return SeriesResource.fromJson(data as Map<String, dynamic>);
   }
 
-  /// Update series
-  Future<Map<String, dynamic>> updateSeries(
-    Map<String, dynamic> seriesData,
-  ) async {
+  Future<SeriesResource> updateSeries(SeriesResource series) async {
     final client = await _api;
-    return await client.put('/series/${seriesData['id']}', seriesData);
+    final data = await client.put('/series/${series.id}', series.toJson());
+    return SeriesResource.fromJson(data as Map<String, dynamic>);
   }
 
-  /// Delete series
   Future<void> deleteSeries(int id, {bool deleteFiles = false}) async {
-    if (id <= 0) {
-      throw ArgumentError('Invalid series ID: $id');
-    }
+    if (id <= 0) throw ArgumentError('Invalid series ID: $id');
     final client = await _api;
     await client.delete('/series/$id?deleteFiles=$deleteFiles');
   }
 
-  /// Trigger series search
   Future<void> searchSeriesCommand(int seriesId) async {
     final client = await _api;
     await client.post('/command', {
@@ -142,19 +139,24 @@ class SonarrService {
     });
   }
 
-  /// Get episodes for a series
-  Future<List<dynamic>> getEpisodesBySeriesId(int seriesId) async {
+  Future<List<EpisodeResource>> getEpisodesBySeriesId(int seriesId) async {
     final client = await _api;
-    return await client.get('/episode?seriesId=$seriesId');
+    return client.getList(
+      '/episode?seriesId=$seriesId',
+      EpisodeResource.fromJson,
+    );
   }
 
-  /// Get episode files for a series
-  Future<List<dynamic>> getEpisodeFilesBySeriesId(int seriesId) async {
+  Future<List<EpisodeFileResource>> getEpisodeFilesBySeriesId(
+    int seriesId,
+  ) async {
     final client = await _api;
-    return await client.get('/episodeFile?seriesId=$seriesId');
+    return client.getList(
+      '/episodeFile?seriesId=$seriesId',
+      EpisodeFileResource.fromJson,
+    );
   }
 
-  /// Set monitored state for one or more episodes
   Future<void> setEpisodesMonitored(
     List<int> episodeIds, {
     required bool monitored,
@@ -166,7 +168,6 @@ class SonarrService {
     });
   }
 
-  /// Search for a specific episode
   Future<void> searchEpisode(int episodeId) async {
     final client = await _api;
     await client.post('/command', {
@@ -175,7 +176,6 @@ class SonarrService {
     });
   }
 
-  /// Delete an episode file
   Future<void> deleteEpisodeFile(int episodeFileId) async {
     if (episodeFileId <= 0) {
       throw ArgumentError('Invalid episode file ID: $episodeFileId');
@@ -184,89 +184,80 @@ class SonarrService {
     await client.delete('/episodeFile/$episodeFileId');
   }
 
-  /// Get quality profiles
-  Future<List<dynamic>> getQualityProfiles() async {
+  Future<List<QualityProfileResource>> getQualityProfiles() async {
     final client = await _api;
-    return await client.get('/qualityProfile');
+    return client.getList('/qualityProfile', QualityProfileResource.fromJson);
   }
 
-  /// Get root folders
-  Future<List<dynamic>> getRootFolders() async {
+  Future<List<RootFolderResource>> getRootFolders() async {
     final client = await _api;
-    return await client.get('/rootFolder');
+    return client.getList('/rootFolder', RootFolderResource.fromJson);
   }
 
-  /// Get tags
-  Future<List<dynamic>> getTags() async {
+  Future<List<TagResource>> getTags() async {
     final client = await _api;
-    return await client.get('/tag');
+    return client.getList('/tag', TagResource.fromJson);
   }
 
-  /// Get tag details by ID
-  Future<Map<String, dynamic>> getTagById(int id) async {
+  Future<TagResource> getTagById(int id) async {
     final client = await _api;
-    return await client.get('/tag/$id');
+    return client.getObject('/tag/$id', TagResource.fromJson);
   }
 
-  /// Search for releases for a specific episode (interactive search)
-  /// Uses extended 60s timeout as release searches can be slow
-  Future<List<dynamic>> searchEpisodeReleases(int episodeId) async {
+  Future<List<SonarrRelease>> searchEpisodeReleases(int episodeId) async {
     final client = await _api;
-    return await client.get(
+    return client.getList(
       '/release?episodeId=$episodeId',
+      SonarrRelease.fromJson,
       timeout: const Duration(seconds: 60),
     );
   }
 
-  /// Download a specific release
-  Future<Map<String, dynamic>> downloadRelease(
+  Future<SonarrRelease> downloadRelease(
     Map<String, dynamic> releaseData,
   ) async {
     final client = await _api;
-    return await client.post('/release', releaseData);
+    final data = await client.post('/release', releaseData);
+    return SonarrRelease.fromJson(data as Map<String, dynamic>);
   }
 
-  /// Get activity history (downloads, imports, failures)
-  Future<Map<String, dynamic>> getHistory({
+  Future<List<SonarrHistoryRecord>> getHistory({
     int page = 1,
     int pageSize = 50,
   }) async {
     final client = await _api;
-    return await client.get(
+    return client.getPagedList(
       '/history?page=$page&pageSize=$pageSize&sortKey=date&sortDirection=descending',
+      SonarrHistoryRecord.fromJson,
     );
   }
 
-  /// Get system health status
-  Future<List<dynamic>> getHealth() async {
+  Future<List<HealthResource>> getHealth() async {
     final client = await _api;
-    return await client.get('/health');
+    return client.getList('/health', HealthResource.fromJson);
   }
 
-  /// Get disk space information
-  Future<List<dynamic>> getDiskspace() async {
+  Future<List<DiskSpaceResource>> getDiskspace() async {
     final client = await _api;
-    return await client.get('/diskspace');
+    return client.getList('/diskspace', DiskSpaceResource.fromJson);
   }
 
-  /// Test all indexers
   Future<void> testAllIndexers() async {
     final client = await _api;
     await client.post('/indexer/testall', {});
   }
 
-  /// Get manual import candidates for a download
-  Future<List<dynamic>> getManualImport({
+  Future<List<SonarrManualImport>> getManualImport({
     required String downloadId,
     bool filterExistingFiles = false,
   }) async {
     final client = await _api;
-    return await client.get(
+    return client.getList(
       '/manualimport?downloadId=$downloadId&filterExistingFiles=$filterExistingFiles',
+      SonarrManualImport.fromJson,
     );
   }
 
-  /// Import selected manual import items via the ManualImport command
   Future<void> performManualImport(List<Map<String, dynamic>> imports) async {
     final client = await _api;
     await client.post('/command', {
@@ -276,9 +267,8 @@ class SonarrService {
     });
   }
 
-  /// Get available languages
-  Future<List<dynamic>> getLanguages() async {
+  Future<List<LanguageResource>> getLanguages() async {
     final client = await _api;
-    return await client.get('/language');
+    return client.getList('/language', LanguageResource.fromJson);
   }
 }

@@ -534,7 +534,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       const SizedBox(width: 4),
                       Text(
                         'Downloaded',
-                        style: TextStyle(fontSize: 14, color: Colors.green[700]),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.green[700],
+                        ),
                       ),
                     ],
                   ],
@@ -546,7 +549,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                     runSpacing: 6,
                     children: genres.take(3).map((genre) {
                       return Chip(
-                        label: Text(genre, style: const TextStyle(fontSize: 12)),
+                        label: Text(
+                          genre,
+                          style: const TextStyle(fontSize: 12),
+                        ),
                         visualDensity: VisualDensity.compact,
                       );
                     }).toList(),
@@ -639,7 +645,11 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           const SizedBox(height: 8),
           Text(
             overview,
-            style: TextStyle(fontSize: 15, color: Colors.grey[700], height: 1.5),
+            style: TextStyle(
+              fontSize: 15,
+              color: Colors.grey[700],
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 24),
         ],

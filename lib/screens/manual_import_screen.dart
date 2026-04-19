@@ -926,12 +926,11 @@ class _EditImportDialogState extends State<_EditImportDialog> {
       final allEpisodes = await widget.sonarrService.getEpisodesBySeriesId(
         _selectedSeries!.id!,
       );
-      final seasonEpisodes = allEpisodes
-          .where((ep) => ep.seasonNumber == seasonNumber)
-          .toList()
-        ..sort(
-          (a, b) => (a.episodeNumber ?? 0).compareTo(b.episodeNumber ?? 0),
-        );
+      final seasonEpisodes =
+          allEpisodes.where((ep) => ep.seasonNumber == seasonNumber).toList()
+            ..sort(
+              (a, b) => (a.episodeNumber ?? 0).compareTo(b.episodeNumber ?? 0),
+            );
 
       if (mounted) {
         setState(() {
@@ -1063,7 +1062,8 @@ class _EditImportDialogState extends State<_EditImportDialog> {
                 onChanged: _searchItems,
               ),
 
-              if ((widget.source == 'sonarr' ? _seriesResults : _movieResults).isNotEmpty)
+              if ((widget.source == 'sonarr' ? _seriesResults : _movieResults)
+                  .isNotEmpty)
                 Container(
                   margin: const EdgeInsets.only(top: 8),
                   constraints: const BoxConstraints(maxHeight: 200),
@@ -1160,7 +1160,9 @@ class _EditImportDialogState extends State<_EditImportDialog> {
                   initialValue: _selectedSeasonNumber,
                   hint: const Text('Select season'),
                   items: (_selectedSeries!.seasons ?? [])
-                      .where((s) => s.seasonNumber != null && s.seasonNumber != 0)
+                      .where(
+                        (s) => s.seasonNumber != null && s.seasonNumber != 0,
+                      )
                       .map(
                         (season) => DropdownMenuItem<int>(
                           value: season.seasonNumber,

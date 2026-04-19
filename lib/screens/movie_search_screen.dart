@@ -345,7 +345,11 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
                       const SizedBox(height: 8),
                       const Row(
                         children: [
-                          Icon(Icons.check_circle, size: 16, color: Colors.green),
+                          Icon(
+                            Icons.check_circle,
+                            size: 16,
+                            color: Colors.green,
+                          ),
                           SizedBox(width: 4),
                           Text(
                             'In Library',
@@ -392,7 +396,9 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading settings: ${ErrorFormatter.format(e)}'),
+            content: Text(
+              'Error loading settings: ${ErrorFormatter.format(e)}',
+            ),
           ),
         );
       }
@@ -499,9 +505,18 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
                     ),
                   ),
                   items: const [
-                    DropdownMenuItem(value: 'announced', child: Text('Announced')),
-                    DropdownMenuItem(value: 'inCinemas', child: Text('In Cinemas')),
-                    DropdownMenuItem(value: 'released', child: Text('Released')),
+                    DropdownMenuItem(
+                      value: 'announced',
+                      child: Text('Announced'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'inCinemas',
+                      child: Text('In Cinemas'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'released',
+                      child: Text('Released'),
+                    ),
                   ],
                   onChanged: (value) {
                     if (value != null) {

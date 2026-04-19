@@ -412,7 +412,9 @@ class _TestScreenState extends State<_TestScreen>
     return Scaffold(
       body: buildBody(
         buildContent: () => ListView(
-          children: _items.map((e) => ListTile(title: Text(e as String))).toList(),
+          children: _items
+              .map((e) => ListTile(title: Text(e as String)))
+              .toList(),
         ),
         isEmpty: _items.isEmpty,
         emptyStateWidget: const Text('empty'),

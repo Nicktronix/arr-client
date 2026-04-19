@@ -242,7 +242,10 @@ class _CalendarScreenState extends State<CalendarScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 12,
+                ),
                 child: Text(
                   _formatDateHeader(date),
                   style: TextStyle(
@@ -267,7 +270,11 @@ class _CalendarScreenState extends State<CalendarScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.movie_creation_outlined, size: 64, color: Colors.grey[400]),
+            Icon(
+              Icons.movie_creation_outlined,
+              size: 64,
+              color: Colors.grey[400],
+            ),
             const SizedBox(height: 16),
             Text(
               'No upcoming movies',
@@ -313,7 +320,10 @@ class _CalendarScreenState extends State<CalendarScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 12,
+                ),
                 child: Text(
                   _formatDateHeader(date),
                   style: TextStyle(

@@ -1,5 +1,17 @@
 import 'package:http/http.dart' as http;
 import 'package:injectable/injectable.dart';
+import 'package:arr_client/models/shared/disk_space.dart';
+import 'package:arr_client/models/shared/health.dart';
+import 'package:arr_client/models/shared/language.dart';
+import 'package:arr_client/models/shared/quality_profile.dart';
+import 'package:arr_client/models/shared/root_folder.dart';
+import 'package:arr_client/models/shared/tag.dart';
+import 'package:arr_client/models/radarr/history_record.dart';
+import 'package:arr_client/models/radarr/manual_import.dart';
+import 'package:arr_client/models/radarr/movie.dart';
+import 'package:arr_client/models/radarr/queue_item.dart';
+import 'package:arr_client/models/radarr/release.dart';
+import 'package:arr_client/models/radarr/system_status.dart';
 import 'package:arr_client/services/api_client.dart';
 import 'package:arr_client/services/app_state_manager.dart';
 
@@ -39,64 +51,54 @@ class RadarrService {
     return _client!;
   }
 
-  /// Reset the API client (called automatically when instance changes)
   void reset() {
     _client?.close();
     _client = null;
   }
 
-  /// Get system status
-  Future<Map<String, dynamic>> getSystemStatus() async {
+  Future<RadarrSystemStatus> getSystemStatus() async {
     final client = await _api;
-    return await client.get('/system/status');
+    return client.getObject('/system/status', RadarrSystemStatus.fromJson);
   }
 
-  /// Get all movies
-  Future<List<dynamic>> getMovies() async {
+  Future<List<MovieResource>> getMovies() async {
     final client = await _api;
-    return await client.get('/movie');
+    return client.getList('/movie', MovieResource.fromJson);
   }
 
-  /// Get movie by ID
-  Future<Map<String, dynamic>> getMovieById(int id) async {
-    if (id <= 0) {
-      throw ArgumentError('Invalid movie ID: $id');
-    }
+  Future<MovieResource> getMovieById(int id) async {
+    if (id <= 0) throw ArgumentError('Invalid movie ID: $id');
     final client = await _api;
-    return await client.get('/movie/$id');
+    return client.getObject('/movie/$id', MovieResource.fromJson);
   }
 
-  /// Search for movies
-  Future<List<dynamic>> searchMovies(String query) async {
+  Future<List<MovieResource>> searchMovies(String query) async {
     final client = await _api;
-    return await client.get('/movie/lookup?term=$query');
+    return client.getList('/movie/lookup?term=$query', MovieResource.fromJson);
   }
 
-  /// Get calendar (upcoming releases)
-  Future<List<dynamic>> getCalendar({DateTime? start, DateTime? end}) async {
+  Future<List<MovieResource>> getCalendar({
+    DateTime? start,
+    DateTime? end,
+  }) async {
     final client = await _api;
     var endpoint = '/calendar';
-
     if (start != null && end != null) {
       final startStr = start.toIso8601String().split('T')[0];
       final endStr = end.toIso8601String().split('T')[0];
       endpoint += '?start=$startStr&end=$endStr';
     }
-
-    return await client.get(endpoint);
+    return client.getList(endpoint, MovieResource.fromJson);
   }
 
-  /// Get queue (current downloads)
-  Future<Map<String, dynamic>> getQueue() async {
+  Future<List<RadarrQueueItem>> getQueue() async {
     final client = await _api;
-    return await client.get(
+    return client.getPagedList(
       '/queue?pageSize=500&sortKey=timeleft&sortDirection=ascending',
+      RadarrQueueItem.fromJson,
     );
   }
 
-  /// Remove item from queue
-  /// removeFromClient: Remove from download client (default true)
-  /// blocklist: Add to blocklist to prevent re-downloading (default false)
   Future<void> removeQueueItem(
     int id, {
     bool removeFromClient = true,
@@ -108,30 +110,24 @@ class RadarrService {
     );
   }
 
-  /// Add a new movie
-  Future<Map<String, dynamic>> addMovie(Map<String, dynamic> movieData) async {
+  Future<MovieResource> addMovie(Map<String, dynamic> movieData) async {
     final client = await _api;
-    return await client.post('/movie', movieData);
+    final data = await client.post('/movie', movieData);
+    return MovieResource.fromJson(data as Map<String, dynamic>);
   }
 
-  /// Update movie
-  Future<Map<String, dynamic>> updateMovie(
-    Map<String, dynamic> movieData,
-  ) async {
+  Future<MovieResource> updateMovie(MovieResource movie) async {
     final client = await _api;
-    return await client.put('/movie/${movieData['id']}', movieData);
+    final data = await client.put('/movie/${movie.id}', movie.toJson());
+    return MovieResource.fromJson(data as Map<String, dynamic>);
   }
 
-  /// Delete movie
   Future<void> deleteMovie(int id, {bool deleteFiles = false}) async {
-    if (id <= 0) {
-      throw ArgumentError('Invalid movie ID: $id');
-    }
+    if (id <= 0) throw ArgumentError('Invalid movie ID: $id');
     final client = await _api;
     await client.delete('/movie/$id?deleteFiles=$deleteFiles');
   }
 
-  /// Trigger movie search
   Future<void> searchMovieCommand(int movieId) async {
     final client = await _api;
     await client.post('/command', {
@@ -140,95 +136,85 @@ class RadarrService {
     });
   }
 
-  /// Get quality profiles
-  Future<List<dynamic>> getQualityProfiles() async {
+  Future<List<QualityProfileResource>> getQualityProfiles() async {
     final client = await _api;
-    return await client.get('/qualityProfile');
+    return client.getList('/qualityProfile', QualityProfileResource.fromJson);
   }
 
-  /// Get root folders
-  Future<List<dynamic>> getRootFolders() async {
+  Future<List<RootFolderResource>> getRootFolders() async {
     final client = await _api;
-    return await client.get('/rootFolder');
+    return client.getList('/rootFolder', RootFolderResource.fromJson);
   }
 
-  /// Get tags
-  Future<List<dynamic>> getTags() async {
+  Future<List<TagResource>> getTags() async {
     final client = await _api;
-    return await client.get('/tag');
+    return client.getList('/tag', TagResource.fromJson);
   }
 
-  /// Get tag details by ID
-  Future<Map<String, dynamic>> getTagById(int id) async {
+  Future<TagResource> getTagById(int id) async {
     final client = await _api;
-    return await client.get('/tag/$id');
+    return client.getObject('/tag/$id', TagResource.fromJson);
   }
 
-  /// Search for releases for a specific movie (interactive search)
-  /// Uses extended 60s timeout as release searches can be slow
-  Future<List<dynamic>> searchMovieReleases(int movieId) async {
+  Future<List<RadarrRelease>> searchMovieReleases(int movieId) async {
     final client = await _api;
-    return await client.get(
+    return client.getList(
       '/release?movieId=$movieId',
+      RadarrRelease.fromJson,
       timeout: const Duration(seconds: 60),
     );
   }
 
-  /// Download a specific release
-  Future<Map<String, dynamic>> downloadRelease(
+  Future<RadarrRelease> downloadRelease(
     Map<String, dynamic> releaseData,
   ) async {
     final client = await _api;
-    return await client.post('/release', releaseData);
+    final data = await client.post('/release', releaseData);
+    return RadarrRelease.fromJson(data as Map<String, dynamic>);
   }
 
-  /// Get activity history (downloads, imports, failures)
-  Future<Map<String, dynamic>> getHistory({
+  Future<List<RadarrHistoryRecord>> getHistory({
     int page = 1,
     int pageSize = 50,
   }) async {
     final client = await _api;
-    return await client.get(
+    return client.getPagedList(
       '/history?page=$page&pageSize=$pageSize&sortKey=date&sortDirection=descending',
+      RadarrHistoryRecord.fromJson,
     );
   }
 
-  /// Get system health status
-  Future<List<dynamic>> getHealth() async {
+  Future<List<HealthResource>> getHealth() async {
     final client = await _api;
-    return await client.get('/health');
+    return client.getList('/health', HealthResource.fromJson);
   }
 
-  /// Get disk space information
-  Future<List<dynamic>> getDiskspace() async {
+  Future<List<DiskSpaceResource>> getDiskspace() async {
     final client = await _api;
-    return await client.get('/diskspace');
+    return client.getList('/diskspace', DiskSpaceResource.fromJson);
   }
 
-  /// Test all indexers
   Future<void> testAllIndexers() async {
     final client = await _api;
     await client.post('/indexer/testall', {});
   }
 
-  /// Delete a movie file by ID
   Future<void> deleteMovieFile(int movieFileId) async {
     final client = await _api;
     await client.delete('/moviefile/$movieFileId');
   }
 
-  /// Get manual import candidates for a download
-  Future<List<dynamic>> getManualImport({
+  Future<List<RadarrManualImport>> getManualImport({
     required String downloadId,
     bool filterExistingFiles = false,
   }) async {
     final client = await _api;
-    return await client.get(
+    return client.getList(
       '/manualimport?downloadId=$downloadId&filterExistingFiles=$filterExistingFiles',
+      RadarrManualImport.fromJson,
     );
   }
 
-  /// Import selected manual import items via the ManualImport command
   Future<void> performManualImport(List<Map<String, dynamic>> imports) async {
     final client = await _api;
     await client.post('/command', {
@@ -238,9 +224,8 @@ class RadarrService {
     });
   }
 
-  /// Get available languages
-  Future<List<dynamic>> getLanguages() async {
+  Future<List<LanguageResource>> getLanguages() async {
     final client = await _api;
-    return await client.get('/language');
+    return client.getList('/language', LanguageResource.fromJson);
   }
 }

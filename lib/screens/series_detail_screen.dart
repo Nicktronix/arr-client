@@ -329,7 +329,10 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                     runSpacing: 6,
                     children: genres.take(3).map((genre) {
                       return Chip(
-                        label: Text(genre, style: const TextStyle(fontSize: 12)),
+                        label: Text(
+                          genre,
+                          style: const TextStyle(fontSize: 12),
+                        ),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
                           vertical: 0,
@@ -368,7 +371,11 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
           const SizedBox(height: 8),
           Text(
             overview,
-            style: TextStyle(fontSize: 14, height: 1.5, color: Colors.grey[800]),
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.5,
+              color: Colors.grey[800],
+            ),
           ),
         ],
       ),
@@ -455,7 +462,11 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                   ),
                   if (totalEpisodes > 0) ...[
                     const SizedBox(width: 8),
-                    Icon(Icons.chevron_right, size: 20, color: Colors.grey[600]),
+                    Icon(
+                      Icons.chevron_right,
+                      size: 20,
+                      color: Colors.grey[600],
+                    ),
                   ],
                 ],
               ),
@@ -661,7 +672,10 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                     ),
                   ),
                   items: const [
-                    DropdownMenuItem(value: 'standard', child: Text('Standard')),
+                    DropdownMenuItem(
+                      value: 'standard',
+                      child: Text('Standard'),
+                    ),
                     DropdownMenuItem(value: 'daily', child: Text('Daily')),
                     DropdownMenuItem(value: 'anime', child: Text('Anime')),
                   ],

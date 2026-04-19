@@ -3,7 +3,8 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:arr_client/models/shared/custom_format.dart';
 import 'package:arr_client/models/shared/language.dart';
 import 'package:arr_client/models/shared/quality.dart';
-import 'package:arr_client/models/sonarr/manual_import.dart' show ImportRejection;
+import 'package:arr_client/models/sonarr/manual_import.dart'
+    show ImportRejection;
 import 'package:arr_client/models/radarr/movie.dart';
 
 part 'manual_import.freezed.dart';

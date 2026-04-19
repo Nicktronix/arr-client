@@ -136,8 +136,9 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
         'seeders' => (a.seeders ?? 0).compareTo(b.seeders ?? 0),
         'quality' => (a.qualityWeight ?? 0).compareTo(b.qualityWeight ?? 0),
         'size' => (a.size ?? 0).compareTo(b.size ?? 0),
-        'cf_score' =>
-          (a.customFormatScore ?? 0).compareTo(b.customFormatScore ?? 0),
+        'cf_score' => (a.customFormatScore ?? 0).compareTo(
+          b.customFormatScore ?? 0,
+        ),
         _ => 0,
       };
       return _sortDescending ? -comparison : comparison;

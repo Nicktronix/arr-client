@@ -345,7 +345,11 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
                       const SizedBox(height: 8),
                       const Row(
                         children: [
-                          Icon(Icons.check_circle, size: 16, color: Colors.green),
+                          Icon(
+                            Icons.check_circle,
+                            size: 16,
+                            color: Colors.green,
+                          ),
                           SizedBox(width: 4),
                           Text(
                             'In Library',
@@ -392,7 +396,9 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading settings: ${ErrorFormatter.format(e)}'),
+            content: Text(
+              'Error loading settings: ${ErrorFormatter.format(e)}',
+            ),
           ),
         );
       }
@@ -499,7 +505,10 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
                     ),
                   ),
                   items: const [
-                    DropdownMenuItem(value: 'standard', child: Text('Standard')),
+                    DropdownMenuItem(
+                      value: 'standard',
+                      child: Text('Standard'),
+                    ),
                     DropdownMenuItem(value: 'daily', child: Text('Daily')),
                     DropdownMenuItem(value: 'anime', child: Text('Anime')),
                   ],
