@@ -161,20 +161,19 @@ void main() {
         );
         await tempFile.writeAsBytes(bytes);
 
-        try {
-          expect(
-            () => service.importInstances('wrong-password', tempFile.path),
-            throwsA(
-              isA<Exception>().having(
-                (e) => e.toString(),
-                'message',
-                contains('Invalid password'),
-              ),
+        addTearDown(() {
+          if (tempFile.existsSync()) tempFile.deleteSync();
+        });
+        await expectLater(
+          service.importInstances('wrong-password', tempFile.path),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('Invalid password'),
             ),
-          );
-        } finally {
-          await tempFile.delete();
-        }
+          ),
+        );
       },
       timeout: const Timeout(Duration(seconds: 30)),
     );
@@ -185,26 +184,24 @@ void main() {
       );
       await tempFile.writeAsString('{"version": 99, "encryptedData": "abc"}');
 
-      try {
-        expect(
-          () => service.importInstances('password', tempFile.path),
-          throwsA(
-            isA<Exception>().having(
-              (e) => e.toString(),
-              'message',
-              contains('Unsupported backup version'),
-            ),
+      addTearDown(() {
+        if (tempFile.existsSync()) tempFile.deleteSync();
+      });
+      await expectLater(
+        service.importInstances('password', tempFile.path),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('Unsupported backup version'),
           ),
-        );
-      } finally {
-        await tempFile.delete();
-      }
+        ),
+      );
     });
 
-    test('import of non-existent file throws', () {
-      expect(
-        () =>
-            service.importInstances('password', '/nonexistent/path/file.json'),
+    test('import of non-existent file throws', () async {
+      await expectLater(
+        service.importInstances('password', '/nonexistent/path/file.json'),
         throwsA(isA<Exception>()),
       );
     });

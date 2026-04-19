@@ -95,7 +95,9 @@ void main() {
       ).thenAnswer((_) async => null);
 
       var notified = false;
-      manager.addListener(() => notified = true);
+      void listener() => notified = true;
+      manager.addListener(listener);
+      addTearDown(() => manager.removeListener(listener));
 
       await manager.initialize();
 
@@ -146,7 +148,9 @@ void main() {
       when(() => mockInstances.getActiveSonarrId()).thenReturn('sonarr-b');
 
       var notifyCount = 0;
-      manager.addListener(() => notifyCount++);
+      void listener() => notifyCount++;
+      manager.addListener(listener);
+      addTearDown(() => manager.removeListener(listener));
 
       await manager.switchSonarrInstance('sonarr-b');
 
@@ -258,7 +262,9 @@ void main() {
       when(() => mockInstances.getSonarrInstancesMetadata()).thenReturn([]);
 
       var notifyCount = 0;
-      manager.addListener(() => notifyCount++);
+      void listener() => notifyCount++;
+      manager.addListener(listener);
+      addTearDown(() => manager.removeListener(listener));
 
       await manager.deleteSonarrInstance('sonarr-a');
 
@@ -277,7 +283,9 @@ void main() {
       ).thenAnswer((_) async => _sonarrA);
 
       var notified = false;
-      manager.addListener(() => notified = true);
+      void listener() => notified = true;
+      manager.addListener(listener);
+      addTearDown(() => manager.removeListener(listener));
 
       await manager.addSonarrInstance(_sonarrA);
 
