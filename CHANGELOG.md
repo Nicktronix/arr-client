@@ -57,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **AppStateManager** is now the single mutation point for all instance CRUD — no direct InstanceManager calls from screens
 
 ### Fixed
+- Calendar and series list screens: runtime crash `List<dynamic> is not a subtype of num?` — `SeasonStatistics.releaseGroups` was typed `double?` (spec: `List<String>`), `SeasonResource.images` was typed `String?` (spec: `List<MediaCover>`)
 - API client: `on ApiException { rethrow }` guard prevents double-wrapping of HTTP errors
 - Sonarr/Radarr `PUT /series/{id}` and `PUT /movie/{id}` — ID now correctly included in URL
 - Episode monitoring uses `PUT /episode/monitor` — no longer fetches full episode to toggle a boolean
