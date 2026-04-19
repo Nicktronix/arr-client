@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-04-19
+
 ### Added
 - **Queue screen enhancements**
   - Warning message banners for downloads with issues (import failures, etc.)
@@ -25,81 +27,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Visual indicators for matched vs unmatched files
   - Rejection reasons shown as informational warnings (can be overridden)
   - Custom format chips with compact styling
-  - **Full edit dialog for overriding matches**:
-    - Live search for series/movies with dropdown results
-    - Season selector dropdown (TV only)
-    - Multi-select episode checkboxes (TV only)
-    - Quality dropdown from API schema
-    - Release group text field
-    - Multi-select language chips (English, Japanese, Other)
-    - Apply button updates candidate object in real-time
+  - Full edit dialog for overriding matches (series/movie search, season, episodes, quality, release group, languages)
   - Bottom action bar with toggle selection and import buttons
   - Dual-service support (Sonarr and Radarr)
   - Progress feedback during import operation
   - Automatic queue refresh after successful import
-  - Reusable from multiple locations in the app
 - **Episode detail screen** with comprehensive information
   - Full episode metadata (title, overview, air date, runtime)
   - Status badges (Downloaded/Missing/Upcoming, Monitored/Unmonitored)
   - File information with quality, size, and custom formats
-  - Custom format chips with visual tags
   - Media information grid (video codec, resolution, audio channels, etc.)
   - Release group and language information
   - File path display
-  - Tap episode cards in season view to drill down into details
+  - Tap episode cards in season view to drill down
 - **Enhanced movie detail screen**
-  - Comprehensive file information display
-  - Custom format chips with CF score color coding
+  - Comprehensive file information with custom format chips and CF score color coding
   - Media information grid
   - Release group, languages, and date added
   - File path display with monospace font
 - **Monitoring toggles** for episodes and movies
-  - Instant UI feedback with optimistic updates
-  - Automatic rollback on API errors
-  - Visual icons (eye/eye-off) in app bar
-- **File deletion** capabilities
-  - Delete episode files with confirmation dialog
-  - Delete movie files with confirmation dialog
-  - Automatic detail refresh after deletion
-- **Enhanced action menus** in detail screens
-  - PopupMenuButton pattern for organized actions
-  - Conditional menu items based on file status
-  - Color-coded destructive actions (red delete buttons)
-  - Automatic/interactive search options
+  - Instant UI feedback with optimistic updates and automatic rollback on API errors
+- **File deletion** for episodes and movies with confirmation dialogs
+- **Stale data indicator** — visible badge when background refresh fails while cached data is shown
+- **Configurable biometric re-auth timeout** — user-adjustable in settings (was hardcoded at 5 minutes)
 
 ### Changed
-- **Queue screen UI improvements**
-  - Switched from Row to Wrap layout for metadata (better responsive behavior)
-  - Added InkWell wrapper for tappable import-pending cards
-  - Enhanced status chip logic with `trackedDownloadStatus` priority
-  - Improved time remaining display (shows "Completed" for 00:00:00)
-  - Added touch_app icon hint for interactive cards
-- **Service layer additions**
-  - `SonarrService.getQualityProfileSchema()` - Fetch quality schema for manual import editing
-  - `SonarrService.getManualImport()` - Fetch manual import candidates for a download
-  - `SonarrService.performManualImport()` - Execute manual import command
-  - `RadarrService.getQualityProfileSchema()` - Fetch quality schema for manual import editing
-  - `RadarrService.getManualImport()` - Fetch manual import candidates for a download
-  - `RadarrService.performManualImport()` - Execute manual import command
+- **Service layer**: new methods for manual import, quality profile schema, episode monitoring, file deletion
+- **Queue screen**: Wrap layout for metadata, enhanced status chip logic, improved time remaining display
+- **AppStateManager** is now the single mutation point for all instance CRUD — no direct InstanceManager calls from screens
 
-### Improved
-- **Code quality and maintainability**
-  - Added input validation to service methods (ID checks)
-  - Refactored InstanceManager with generic methods to reduce duplication
-  - Improved error message sanitization in API client
-  - Enhanced cache overflow protection with debug logging
-  - Safer iteration patterns (replaced `.firstWhere()` with for loops)
-- **Service layer enhancements**
-  - `SonarrService.updateEpisode()` - Full object fetch/merge pattern
-  - `SonarrService.deleteEpisodeFile()` - Delete episode files
-  - `SonarrService.searchEpisode()` - Trigger automatic episode search
-  - `RadarrService.deleteMovieFile()` - Delete movie files
-  - Extended timeout support in API methods
+### Fixed
+- API client: `on ApiException { rethrow }` guard prevents double-wrapping of HTTP errors
+- Sonarr/Radarr `PUT /series/{id}` and `PUT /movie/{id}` — ID now correctly included in URL
+- Episode monitoring uses `PUT /episode/monitor` — no longer fetches full episode to toggle a boolean
+- Manual import uses `POST /command` with `ManualImport` — not the candidate-only `POST /manualimport` endpoint
+- Queue page size explicitly set to 500 — was silently truncating to 10
+- Service client resets on any AppStateManager notification including credential edits
+- URL credential sanitization regex tightened
+- Mounted guard checks before all `setState` calls after async operations
+
+### Security
+- Replaced `encrypt` + `pointycastle` (last updated 2023, pulls in discontinued `js` package) with `cryptography 2.9.0` (pure Dart, actively maintained)
+- Backup crypto migrated to async PBKDF2 + AES-256-GCM APIs — v1 AES-CBC legacy import preserved
+- Biometric re-auth timeout now configurable — previously could not be reduced below 5 minutes
+
+### Technical
+- Dependency injection with `get_it` + `injectable` — services no longer manually constructed singletons
+- API response models migrated from `Map<String, dynamic>` to `freezed` + `json_serializable` typed models
+- `very_good_analysis` strict lint rules enforced — all warnings treated as errors
+- Test suite expanded from 21 to 137 tests (unit + widget)
+- CI: 10% line coverage threshold enforced — build fails below baseline
+- CI: `google/osv-scanner` replaces `flutter pub outdated` — scans `pubspec.lock` against OSV vulnerability database
+- CI: Flutter bumped to 3.41.2 (Dart 3.11.4)
+- Dependencies updated: `file_picker 11.x`, `mocktail 1.0.5`, `cupertino_icons 1.0.9`
+- Branch protection on `develop`: all 3 CI jobs required before merge
 
 ## [1.0.0] - 2025-12-17
 
 ### Added
-- **Initial Public Release** 🎉
+- **Initial Public Release**
 - Sonarr v3 API integration
   - Browse and search series library
   - Add new series with quality profiles, root folders, and tags
@@ -145,51 +131,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - macOS
   - Web
 - Developer experience
-  - Comprehensive test suite (21 tests)
+  - Comprehensive test suite
   - CI/CD pipeline with GitHub Actions
   - Code analysis and formatting checks
   - Coverage reporting
   - Security scanning
 
 ### Technical Details
-- Flutter SDK 3.38.5
-- Dart 3.10.4
+- Flutter SDK 3.38.5 / Dart 3.10.4
 - Material Design 3
-- No external state management libraries
 - Centralized architecture with AppStateManager
 - CachedDataLoader mixin pattern for consistent UX
 
 ---
 
-## Release Notes Format
-
-Each version should document:
-
-### Added
-New features, capabilities, or additions to the app.
-
-### Changed
-Changes to existing functionality or behavior.
-
-### Deprecated
-Features that will be removed in upcoming releases.
-
-### Removed
-Features that have been removed.
-
-### Fixed
-Bug fixes and corrections.
-
-### Security
-Security vulnerability fixes and improvements.
-
----
-
 ## Version History
 
-- **[Unreleased]** - Development branch (not yet released)
+- **[1.1.0]** - 2026-04-19 - Queue enhancements, manual import, episode/movie detail, DI, typed models, OSV security scanning
 - **[1.0.0]** - 2025-12-17 - Initial Public Release
 
 <!-- Link Definitions -->
-[Unreleased]: https://github.com/Nicktronix/arr-client/compare/v1.0.0...develop
+[Unreleased]: https://github.com/Nicktronix/arr-client/compare/v1.1.0...develop
+[1.1.0]: https://github.com/Nicktronix/arr-client/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Nicktronix/arr-client/releases/tag/v1.0.0

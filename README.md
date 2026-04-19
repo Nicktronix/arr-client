@@ -3,7 +3,7 @@
 [![Flutter CI](https://github.com/Nicktronix/arr-client/actions/workflows/ci.yml/badge.svg)](https://github.com/Nicktronix/arr-client/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/Nicktronix/arr-client/branch/main/graph/badge.svg)](https://codecov.io/gh/Nicktronix/arr-client)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Flutter](https://img.shields.io/badge/Flutter-3.38.5-02569B?logo=flutter)](https://flutter.dev)
+[![Flutter](https://img.shields.io/badge/Flutter-3.41.2-02569B?logo=flutter)](https://flutter.dev)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Linux%20%7C%20Windows%20%7C%20macOS%20%7C%20Web-brightgreen)]()
 
 A mobile client for [Sonarr](https://sonarr.tv/) and [Radarr](https://radarr.video/) media servers built with Flutter. Manage your media library on the go with a native Material Design 3 interface.
@@ -14,7 +14,7 @@ A mobile client for [Sonarr](https://sonarr.tv/) and [Radarr](https://radarr.vid
 
 - 📺 **Sonarr**: Browse, search, and add TV series • Episode detail view with comprehensive file info • Toggle monitoring • Delete episode files • Interactive release search
 - 🎬 **Radarr**: Browse, search, and add movies • Enhanced movie details with custom formats • Toggle monitoring • Delete movie files • Manual movie searches
-- 📥 **Downloads**: Unified queue for both services • Real-time progress tracking • Detailed release browser
+- 📥 **Downloads**: Unified queue for both services • Real-time progress tracking • Manual import workflow • Warning banners for stuck downloads
 - 🔄 **Multi-Instance**: Manage multiple Sonarr/Radarr servers • Easy switching • Secure credential storage
 - 🔒 **Security**: Biometric authentication • Encrypted backups • Platform keychain/keystore integration
 - 🎨 **Material Design 3**: Modern, responsive UI • Pull-to-refresh • Optimized for mobile
@@ -27,7 +27,7 @@ A mobile client for [Sonarr](https://sonarr.tv/) and [Radarr](https://radarr.vid
 
 ### Build from Source
 
-**Prerequisites**: [Flutter SDK](https://flutter.dev/docs/get-started/install) 3.38.5 or higher
+**Prerequisites**: [Flutter SDK](https://flutter.dev/docs/get-started/install) 3.41.2 or higher
 
 1. **Clone the repository**
    ```bash
