@@ -795,7 +795,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
 
       // Pick save location with bytes (required for Android/iOS)
       // Keep dialog open until file picker shows to prevent "frozen" appearance
-      final result = await FilePicker.platform.saveFile(
+      final result = await FilePicker.saveFile(
         dialogTitle: 'Save Backup',
         fileName: 'arr_backup_${DateTime.now().millisecondsSinceEpoch}.json',
         type: FileType.custom,
@@ -858,7 +858,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
       );
 
       // Pick file
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
         dialogTitle: 'Select Backup File',
@@ -866,9 +866,9 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
 
       if (mounted) Navigator.pop(context); // Close file picker loading
 
-      if (result == null || result.files.single.path == null) return;
-
-      final filePath = result.files.single.path!;
+      if (result == null) return;
+      final filePath = result.files.single.path;
+      if (filePath == null) return;
 
       // Show password dialog
       if (!mounted) return;
