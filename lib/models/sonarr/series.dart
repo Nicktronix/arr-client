@@ -19,7 +19,7 @@ abstract class SeasonStatistics with _$SeasonStatistics {
     int? episodeCount,
     int? totalEpisodeCount,
     int? sizeOnDisk,
-    double? releaseGroups,
+    List<String>? releaseGroups,
     double? percentOfEpisodes,
   }) = _SeasonStatistics;
 
@@ -33,7 +33,7 @@ abstract class SeasonResource with _$SeasonResource {
     int? seasonNumber,
     bool? monitored,
     SeasonStatistics? statistics,
-    String? images,
+    List<MediaCover>? images,
   }) = _SeasonResource;
 
   factory SeasonResource.fromJson(Map<String, dynamic> json) =>

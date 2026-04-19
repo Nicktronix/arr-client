@@ -267,7 +267,7 @@ void main() {
       () async {
         // Build a v1-format backup using AES-CBC via the cryptography package
         // so we can test the legacy decrypt path without the old encrypt library.
-        final password = 'legacy-password';
+        const password = 'legacy-password';
         final salt = Uint8List.fromList(List.generate(16, (i) => i));
         final iv = Uint8List.fromList(List.generate(16, (i) => i + 16));
 
@@ -283,11 +283,11 @@ void main() {
 
         final plaintext = utf8.encode(
           '{"sonarrInstances":[{"id":"sonarr-a","name":"Sonarr A",'
-          '"baseUrl":"http://sonarr-a.local","apiKey":"apikey-sonarr-a",'
-          '"useBasicAuth":false,"basicAuthUsername":null,'
-          '"basicAuthPassword":null}],'
-          '"radarrInstances":[],'
-          '"activeSonarrId":"sonarr-a","activeRadarrId":null}',
+          ' "baseUrl":"http://sonarr-a.local","apiKey":"apikey-sonarr-a",'
+          ' "useBasicAuth":false,"basicAuthUsername":null,'
+          ' "basicAuthPassword":null}],'
+          ' "radarrInstances":[],'
+          ' "activeSonarrId":"sonarr-a","activeRadarrId":null}',
         );
 
         // AesCbc.with256bits handles PKCS7 padding automatically
