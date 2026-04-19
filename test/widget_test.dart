@@ -317,17 +317,19 @@ void main() {
         expect(find.text('item1'), findsOneWidget);
       });
 
-      testWidgets('loading → loaded: shows content after successful first fetch',
-          (tester) async {
-        await tester.pumpWidget(
-          buildScreen(() async => ['item1', 'item2']),
-        );
-        await tester.pumpAndSettle();
+      testWidgets(
+        'loading → loaded: shows content after successful first fetch',
+        (tester) async {
+          await tester.pumpWidget(
+            buildScreen(() async => ['item1', 'item2']),
+          );
+          await tester.pumpAndSettle();
 
-        expect(find.text('item1'), findsOneWidget);
-        expect(find.text('item2'), findsOneWidget);
-        expect(find.byType(CircularProgressIndicator), findsNothing);
-      });
+          expect(find.text('item1'), findsOneWidget);
+          expect(find.text('item2'), findsOneWidget);
+          expect(find.byType(CircularProgressIndicator), findsNothing);
+        },
+      );
 
       testWidgets('loading → error: shows error state when first fetch fails', (
         tester,
@@ -341,22 +343,26 @@ void main() {
         expect(find.byIcon(Icons.warning_amber_rounded), findsNothing);
       });
 
-      testWidgets('cache hit: valid cache shows content without calling fetch',
-          (tester) async {
-        getIt<AppStateManager>().setSonarrCache(testCacheKey, ['cached_item']);
+      testWidgets(
+        'cache hit: valid cache shows content without calling fetch',
+        (tester) async {
+          getIt<AppStateManager>().setSonarrCache(testCacheKey, [
+            'cached_item',
+          ]);
 
-        var fetchCallCount = 0;
-        await tester.pumpWidget(
-          buildScreen(() async {
-            fetchCallCount++;
-            return ['fresh_item'];
-          }),
-        );
-        await tester.pumpAndSettle();
+          var fetchCallCount = 0;
+          await tester.pumpWidget(
+            buildScreen(() async {
+              fetchCallCount++;
+              return ['fresh_item'];
+            }),
+          );
+          await tester.pumpAndSettle();
 
-        expect(fetchCallCount, 0);
-        expect(find.text('cached_item'), findsOneWidget);
-      });
+          expect(fetchCallCount, 0);
+          expect(find.text('cached_item'), findsOneWidget);
+        },
+      );
 
       testWidgets('force refresh calls fetch even with valid cache', (
         tester,
@@ -383,25 +389,26 @@ void main() {
       });
 
       testWidgets(
-          'mounted guard prevents setState crash when disposed during fetch',
-          (tester) async {
-        final completer = Completer<dynamic>();
-        addTearDown(() {
-          if (!completer.isCompleted) completer.complete(<dynamic>[]);
-        });
+        'mounted guard prevents setState crash when disposed during fetch',
+        (tester) async {
+          final completer = Completer<dynamic>();
+          addTearDown(() {
+            if (!completer.isCompleted) completer.complete(<dynamic>[]);
+          });
 
-        await tester.pumpWidget(buildScreen(() => completer.future));
-        await tester.pump();
+          await tester.pumpWidget(buildScreen(() => completer.future));
+          await tester.pump();
 
-        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+          expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-        // Dispose widget before fetch completes
-        await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+          // Dispose widget before fetch completes
+          await tester.pumpWidget(const MaterialApp(home: SizedBox()));
 
-        // Complete after disposal — mounted guard prevents crash
-        completer.complete(['data']);
-        await tester.pump();
-      });
+          // Complete after disposal — mounted guard prevents crash
+          completer.complete(['data']);
+          await tester.pump();
+        },
+      );
     });
 
     group('stale data', () {

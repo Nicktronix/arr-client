@@ -21,7 +21,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
   analyze:
@@ -32,14 +33,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-      
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.38.5'
           channel: 'stable'
           cache: true
-      
+
       - name: Install dependencies
         run: flutter pub get
 
@@ -61,14 +62,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-      
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.38.5'
           channel: 'stable'
           cache: true
-      
+
       - name: Install dependencies
         run: flutter pub get
 
@@ -77,12 +78,21 @@ jobs:
 
       - name: Run tests with coverage
         run: flutter test --coverage --reporter=expanded
-      
+
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(awk -F: '/^DA:/{split($2,a,","); total++; if(a[2]>0) hit++} END{printf "%.0f", hit/total*100}' coverage/lcov.info)
+          echo "Line coverage: ${COVERAGE}%"
+          if [ "$COVERAGE" -lt 10 ]; then
+            echo "Coverage ${COVERAGE}% is below minimum threshold of 10%"
+            exit 1
+          fi
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v6
         with:
           files: ./coverage/lcov.info
-          fail_ci_if_error: false
+          fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
 
   security:
@@ -94,17 +104,17 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-      
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.38.5'
           channel: 'stable'
           cache: true
-      
+
       - name: Install dependencies
         run: flutter pub get
-      
+
       - name: Check for outdated packages
         run: flutter pub outdated --show-all
         continue-on-error: true
