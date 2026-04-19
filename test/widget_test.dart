@@ -277,13 +277,10 @@ void main() {
     });
   });
 
-  group('CachedDataLoader stale data indicator', () {
+  group('CachedDataLoader', () {
     const testInstanceId = 'test-sonarr-id';
     const testCacheKey = 'test_screen';
     const fullCacheKey = '${testCacheKey}_$testInstanceId';
-
-    late bool shouldFetchThrow;
-    late List<dynamic> fetchResult;
 
     setUp(() async {
       SharedPreferences.setMockInitialValues({
@@ -293,88 +290,186 @@ void main() {
       await configureDependencies();
       await getIt<AppStateManager>().initialize();
       getIt<CacheManager>().clearAll();
-      shouldFetchThrow = false;
-      fetchResult = ['item1', 'item2'];
     });
 
-    Widget buildTestScreen() {
-      return MaterialApp(
-        home: _TestScreen(
-          shouldThrow: () => shouldFetchThrow,
-          result: () => fetchResult,
-        ),
-      );
+    Widget buildScreen(Future<dynamic> Function() fetchFuture) {
+      return MaterialApp(home: _TestScreen(fetchFuture: fetchFuture));
     }
 
-    testWidgets('shows stale banner when background refresh fails', (
-      WidgetTester tester,
-    ) async {
-      // Seed stale cache
-      getIt<AppStateManager>().setSonarrCache(testCacheKey, ['cached_item']);
-      getIt<CacheManager>().backdateTimestamp(
-        fullCacheKey,
-        const Duration(minutes: 10),
-      );
+    group('state transitions', () {
+      testWidgets('shows spinner before first fetch completes', (
+        tester,
+      ) async {
+        final completer = Completer<dynamic>();
+        addTearDown(() {
+          if (!completer.isCompleted) completer.complete(<dynamic>[]);
+        });
 
-      shouldFetchThrow = true;
+        await tester.pumpWidget(buildScreen(() => completer.future));
+        await tester.pump();
 
-      await tester.pumpWidget(buildTestScreen());
-      await tester.pumpAndSettle();
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-      expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
-      expect(find.text('Retry'), findsOneWidget);
-      // Stale content still visible
-      expect(find.text('cached_item'), findsOneWidget);
+        completer.complete(['item1']);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(CircularProgressIndicator), findsNothing);
+        expect(find.text('item1'), findsOneWidget);
+      });
+
+      testWidgets('loading → loaded: shows content after successful first fetch',
+          (tester) async {
+        await tester.pumpWidget(
+          buildScreen(() async => ['item1', 'item2']),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('item1'), findsOneWidget);
+        expect(find.text('item2'), findsOneWidget);
+        expect(find.byType(CircularProgressIndicator), findsNothing);
+      });
+
+      testWidgets('loading → error: shows error state when first fetch fails', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          buildScreen(() => Future.error(Exception('Network error'))),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byIcon(Icons.error_outline), findsOneWidget);
+        expect(find.byIcon(Icons.warning_amber_rounded), findsNothing);
+      });
+
+      testWidgets('cache hit: valid cache shows content without calling fetch',
+          (tester) async {
+        getIt<AppStateManager>().setSonarrCache(testCacheKey, ['cached_item']);
+
+        var fetchCallCount = 0;
+        await tester.pumpWidget(
+          buildScreen(() async {
+            fetchCallCount++;
+            return ['fresh_item'];
+          }),
+        );
+        await tester.pumpAndSettle();
+
+        expect(fetchCallCount, 0);
+        expect(find.text('cached_item'), findsOneWidget);
+      });
+
+      testWidgets('force refresh calls fetch even with valid cache', (
+        tester,
+      ) async {
+        getIt<AppStateManager>().setSonarrCache(testCacheKey, ['cached_item']);
+
+        var fetchCallCount = 0;
+        await tester.pumpWidget(
+          buildScreen(() async {
+            fetchCallCount++;
+            return ['fresh_item'];
+          }),
+        );
+        await tester.pumpAndSettle();
+
+        expect(fetchCallCount, 0);
+        expect(find.text('cached_item'), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('force_refresh')));
+        await tester.pumpAndSettle();
+
+        expect(fetchCallCount, 1);
+        expect(find.text('fresh_item'), findsOneWidget);
+      });
+
+      testWidgets(
+          'mounted guard prevents setState crash when disposed during fetch',
+          (tester) async {
+        final completer = Completer<dynamic>();
+        addTearDown(() {
+          if (!completer.isCompleted) completer.complete(<dynamic>[]);
+        });
+
+        await tester.pumpWidget(buildScreen(() => completer.future));
+        await tester.pump();
+
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+        // Dispose widget before fetch completes
+        await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+
+        // Complete after disposal — mounted guard prevents crash
+        completer.complete(['data']);
+        await tester.pump();
+      });
     });
 
-    testWidgets('banner clears after successful retry', (
-      WidgetTester tester,
-    ) async {
-      // Seed stale cache
-      getIt<AppStateManager>().setSonarrCache(testCacheKey, ['cached_item']);
-      getIt<CacheManager>().backdateTimestamp(
-        fullCacheKey,
-        const Duration(minutes: 10),
-      );
+    group('stale data', () {
+      testWidgets('shows stale banner when background refresh fails', (
+        tester,
+      ) async {
+        getIt<AppStateManager>().setSonarrCache(testCacheKey, ['cached_item']);
+        getIt<CacheManager>().backdateTimestamp(
+          fullCacheKey,
+          const Duration(minutes: 10),
+        );
 
-      shouldFetchThrow = true;
+        await tester.pumpWidget(
+          buildScreen(() => Future.error(Exception('Network error'))),
+        );
+        await tester.pumpAndSettle();
 
-      await tester.pumpWidget(buildTestScreen());
-      await tester.pumpAndSettle();
+        expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
+        expect(find.text('Retry'), findsOneWidget);
+        expect(find.text('cached_item'), findsOneWidget);
+      });
 
-      expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
+      testWidgets('banner clears after successful retry', (tester) async {
+        getIt<AppStateManager>().setSonarrCache(testCacheKey, ['cached_item']);
+        getIt<CacheManager>().backdateTimestamp(
+          fullCacheKey,
+          const Duration(minutes: 10),
+        );
 
-      // Fix the fetch and retry
-      shouldFetchThrow = false;
-      fetchResult = ['fresh_item'];
-      await tester.tap(find.text('Retry'));
-      await tester.pumpAndSettle();
+        var shouldThrow = true;
+        await tester.pumpWidget(
+          buildScreen(
+            () => shouldThrow
+                ? Future.error(Exception('Network error'))
+                : Future.value(['fresh_item']),
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.warning_amber_rounded), findsNothing);
-      expect(find.text('fresh_item'), findsOneWidget);
-    });
+        expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
 
-    testWidgets('shows full error state when no cache exists', (
-      WidgetTester tester,
-    ) async {
-      // No cache seeded — first load fails
-      shouldFetchThrow = true;
+        shouldThrow = false;
+        await tester.tap(find.text('Retry'));
+        await tester.pumpAndSettle();
 
-      await tester.pumpWidget(buildTestScreen());
-      await tester.pumpAndSettle();
+        expect(find.byIcon(Icons.warning_amber_rounded), findsNothing);
+        expect(find.text('fresh_item'), findsOneWidget);
+      });
 
-      expect(find.byIcon(Icons.error_outline), findsOneWidget);
-      expect(find.byIcon(Icons.warning_amber_rounded), findsNothing);
+      testWidgets('shows full error state when no cache exists', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          buildScreen(() => Future.error(Exception('Network error'))),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byIcon(Icons.error_outline), findsOneWidget);
+        expect(find.byIcon(Icons.warning_amber_rounded), findsNothing);
+      });
     });
   });
 }
 
-// Minimal widget for CachedDataLoader tests
 class _TestScreen extends StatefulWidget {
-  final bool Function() shouldThrow;
-  final List<dynamic> Function() result;
+  final Future<dynamic> Function() fetchFuture;
 
-  const _TestScreen({required this.shouldThrow, required this.result});
+  const _TestScreen({required this.fetchFuture});
 
   @override
   State<_TestScreen> createState() => _TestScreenState();
@@ -391,10 +486,7 @@ class _TestScreenState extends State<_TestScreen>
   bool get isSonarrScreen => true;
 
   @override
-  Future<dynamic> fetchData() async {
-    if (widget.shouldThrow()) throw Exception('Network error');
-    return widget.result();
-  }
+  Future<dynamic> fetchData() => widget.fetchFuture();
 
   @override
   void onDataLoaded(dynamic data) {
@@ -410,6 +502,11 @@ class _TestScreenState extends State<_TestScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      floatingActionButton: FloatingActionButton(
+        key: const Key('force_refresh'),
+        onPressed: () => loadData(forceRefresh: true),
+        child: const Icon(Icons.refresh),
+      ),
       body: buildBody(
         buildContent: () => ListView(
           children: _items
