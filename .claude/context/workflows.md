@@ -35,16 +35,18 @@ dart format .                           # auto-format
 ## Running tests
 
 ```bash
-flutter test                            # all tests
+flutter test                            # all tests (137)
 flutter test --coverage                 # with coverage report
-flutter test test/widget_test.dart      # specific file
+flutter test test/unit/                 # unit tests only
+flutter test test/widget_test.dart      # widget tests only
 ```
 
 ## Checking security
 
 ```bash
-flutter pub outdated                    # check for vulnerable deps
 flutter pub upgrade --dry-run           # preview upgrades
+# Vulnerability scanning runs automatically in CI via google/osv-scanner
+# against pubspec.lock — no local tool needed
 ```
 
 ## Instance switching — test checklist

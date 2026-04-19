@@ -11,7 +11,7 @@ See `CLAUDE.md` for the high-level overview and critical files list.
 class ScreenName extends StatefulWidget { ... }
 
 class _ScreenNameState extends State<ScreenName> with CachedDataLoader {
-  final SonarrService _sonarr = SonarrService();
+  final SonarrService _sonarr = getIt<SonarrService>();
   List<dynamic> _data = [];
 
   @override
@@ -71,16 +71,18 @@ onChanged: (value) async {
 
 ---
 
-## Service singleton pattern
+## Service DI pattern
+
+Services are registered as `@lazySingleton` via `injectable` and accessed through `get_it`:
 
 ```dart
+@lazySingleton
 class SonarrService {
-  static final SonarrService _instance = SonarrService._internal();
-  factory SonarrService() => _instance;
-  SonarrService._internal() {
-    AppStateManager().addListener(_onInstanceChanged);
+  SonarrService(this._appStateManager) {
+    _appStateManager.addListener(_onInstanceChanged);
   }
 
+  final AppStateManager _appStateManager;
   ApiClient? _client;
 
   // Always reset on any AppStateManager notification — covers both instance
@@ -88,9 +90,7 @@ class SonarrService {
   void _onInstanceChanged() => reset();
 
   Future<ApiClient> get _api async {
-    if (_client == null) {
-      _client = ApiClient(baseUrl: AppConfig.sonarrBaseUrl, apiKey: AppConfig.sonarrApiKey);
-    }
+    _client ??= ApiClient(baseUrl: AppConfig.sonarrBaseUrl, apiKey: AppConfig.sonarrApiKey);
     return _client!;
   }
 
@@ -98,7 +98,7 @@ class SonarrService {
 }
 ```
 
-Services auto-detect instance changes — no manual coordination needed. Do NOT add an ID guard to `_onInstanceChanged` — it prevents reset when editing credentials on the active instance.
+Access in screens: `getIt<SonarrService>()`. Never construct directly. Do NOT add an ID guard to `_onInstanceChanged` — it prevents reset when editing credentials on the active instance.
 
 ---
 
@@ -191,9 +191,10 @@ DELETE /queue/{id}?removeFromClient=true&blocklist=false
 # Episodes
 GET  /episode?seriesId={id}        → List<dynamic>
 
-# Manual import (v3 — do NOT use POST /command for this)
-GET  /manualimport?downloadId=...  → List<dynamic>   candidates
-PUT  /manualimport                 → List of candidate objects  (triggers import)
+# Manual import (v3)
+GET  /manualimport?downloadId=...  → List<dynamic>   candidates (preview only)
+# Actual import — NOT PUT/POST /manualimport (that only reprocesses candidates)
+POST /command  { "name": "ManualImport", "files": [...], "importMode": "move" }
 
 # Release search
 GET  /release?episodeId={id}       → List<dynamic>

@@ -35,9 +35,9 @@ In-memory cache with instance-aware keys (e.g. `series_list_instance123`). 5-min
 Mixin for all data-loading screens. Provides the standard loading → loaded/error/empty pattern, cache checking, and background refresh. See `architecture.md` for full usage example.
 
 **Service layer** (`SonarrService`, `RadarrService`)
-Singleton API clients that listen to `AppStateManager` and auto-reset their `ApiClient` when the active instance changes. Lazy initialisation on first use.
+`@lazySingleton` API clients registered with `get_it` via `injectable`. Listen to `AppStateManager` and auto-reset their `ApiClient` when the active instance changes. Access via `getIt<SonarrService>()` — never construct directly.
 
-**Typed models** — API responses use `freezed` + `json_serializable` models under `lib/models/`. History, queue, release search, and manual import screens convert typed results to `Map<String, dynamic>` via `.toJson()` at the boundary to preserve complex existing card-builder code. `ServiceInstance` remains the only model outside `lib/models/`.
+**Typed models** — API responses use `freezed` + `json_serializable` models under `lib/models/`. History, queue, release search, and manual import screens convert typed results to `Map<String, dynamic>` via `.toJson()` at the boundary to preserve complex existing card-builder code. `ServiceInstance` is the only model outside `lib/models/` (lives in `lib/models/service_instance.dart` for historical reasons).
 
 ---
 
@@ -56,7 +56,7 @@ Singleton API clients that listen to `AppStateManager` and auto-reset their `Api
 **State management**
 - `setState()` only — no Provider, Bloc, Riverpod, or any library
 - All data screens use `CachedDataLoader` mixin
-- Services are singletons; screens never instantiate them with `new`
+- Services are `get_it` singletons — access via `getIt<ServiceName>()`, never `ServiceName()`
 
 **Data access**
 - Always null-check: `data['field'] ?? 'default'`
@@ -113,15 +113,16 @@ Singleton API clients that listen to `AppStateManager` and auto-reset their `Api
 | `lib/services/sonarr_service.dart` | All Sonarr API methods, lazy client init |
 | `lib/services/radarr_service.dart` | All Radarr API methods, lazy client init |
 | `lib/services/backup_service.dart` | AES-256-GCM backup/restore with isolate crypto |
-| `lib/services/biometric_service.dart` | Biometric auth, 5-minute re-auth timeout (hardcoded) |
+| `lib/services/biometric_service.dart` | Biometric auth, configurable re-auth timeout (user setting, default 5 min) |
 | `lib/config/app_config.dart` | Synchronous getters delegating to AppStateManager |
 | `lib/utils/cached_data_loader.dart` | Mixin for consistent loading patterns |
 | `lib/utils/error_formatter.dart` | User-friendly errors, credential sanitization |
-| `lib/models/service_instance.dart` | Only typed data model in the app |
+| `lib/models/` | Typed API response models — `freezed` + `json_serializable` (sonarr/, radarr/, shared/) |
 | `lib/screens/home_screen.dart` | Bottom nav, AppStateManager listener, IndexedStack |
 | `lib/screens/settings_screen.dart` | Instance management |
 | `lib/screens/series_list_screen.dart` | Reference implementation of CachedDataLoader |
 | `lib/screens/release_search_screen.dart` | Unified release dialog for series and movies |
 | `lib/screens/queue_screen.dart` | Combined Sonarr+Radarr queue, remove, manual import entry point |
 | `lib/screens/manual_import_screen.dart` | Manual import flow — candidate list, edit dialog, import execution |
-| `test/widget_test.dart` | All tests (21 passing) |
+| `test/widget_test.dart` | Widget/integration tests (CachedDataLoader, AppStateManager) |
+| `test/unit/` | Unit tests — api_client, backup_service, app_state_manager (137 total) |
