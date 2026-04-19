@@ -67,12 +67,13 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
 
     try {
       final allEpisodes = await _sonarr.getEpisodesBySeriesId(widget.seriesId);
-      final seasonEpisodes = allEpisodes
-          .where((ep) => ep.seasonNumber == widget.seasonNumber)
-          .toList()
-        ..sort(
-          (a, b) => (a.episodeNumber ?? 0).compareTo(b.episodeNumber ?? 0),
-        );
+      final seasonEpisodes =
+          allEpisodes
+              .where((ep) => ep.seasonNumber == widget.seasonNumber)
+              .toList()
+            ..sort(
+              (a, b) => (a.episodeNumber ?? 0).compareTo(b.episodeNumber ?? 0),
+            );
 
       setState(() {
         _episodes = seasonEpisodes;
@@ -298,7 +299,9 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
                               hasFile ? 'Downloaded' : 'Missing',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: hasFile ? Colors.green : Colors.grey[600],
+                                color: hasFile
+                                    ? Colors.green
+                                    : Colors.grey[600],
                               ),
                             ),
                           ],

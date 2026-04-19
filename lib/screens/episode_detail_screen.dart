@@ -439,8 +439,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
     final runtime = _episode!.runtime;
     final monitored = _episode!.monitored ?? false;
     final absoluteEpisodeNumber = _episode!.absoluteEpisodeNumber;
-    final qualityCutoffNotMet =
-        _episodeFile?.qualityCutoffNotMet ?? false;
+    final qualityCutoffNotMet = _episodeFile?.qualityCutoffNotMet ?? false;
 
     DateTime? airDate;
     if (airDateUtc != null) {
@@ -544,8 +543,7 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
   }
 
   Widget _buildFileInfo() {
-    final quality =
-        _episodeFile!.quality?.quality?.name ?? 'Unknown';
+    final quality = _episodeFile!.quality?.quality?.name ?? 'Unknown';
     final size = _episodeFile!.size ?? 0;
     final dateAdded = _episodeFile!.dateAdded;
     final releaseGroup = _episodeFile!.releaseGroup;
