@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -202,6 +205,209 @@ void main() {
     test('import of non-existent file throws', () async {
       await expectLater(
         service.importInstances('password', '/nonexistent/path/file.json'),
+        throwsA(isA<Exception>()),
+      );
+    });
+
+    test(
+      'import updates existing instance when id matches',
+      () async {
+        when(
+          () => mockInstances.getSonarrInstances(),
+        ).thenAnswer((_) async => [_sonarrA]);
+        when(
+          () => mockInstances.getRadarrInstances(),
+        ).thenAnswer((_) async => [_radarrA]);
+        when(() => mockInstances.getActiveSonarrId()).thenReturn('sonarr-a');
+        when(() => mockInstances.getActiveRadarrId()).thenReturn('radarr-a');
+
+        final bytes = await service.exportInstances('password');
+        final tempFile = File(
+          '${Directory.systemTemp.path}/arr_client_test_update.json',
+        );
+        await tempFile.writeAsBytes(bytes);
+        addTearDown(() {
+          if (tempFile.existsSync()) tempFile.deleteSync();
+        });
+
+        // Return existing instances with matching IDs → triggers update path
+        when(
+          () => mockInstances.getSonarrInstances(),
+        ).thenAnswer((_) async => [_sonarrA]);
+        when(
+          () => mockInstances.getRadarrInstances(),
+        ).thenAnswer((_) async => [_radarrA]);
+        when(
+          () => mockInstances.updateSonarrInstance(any()),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockInstances.updateRadarrInstance(any()),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockInstances.setActiveSonarrId(any()),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockInstances.setActiveRadarrId(any()),
+        ).thenAnswer((_) async {});
+
+        final result = await service.importInstances('password', tempFile.path);
+
+        expect(result['sonarr'], 1);
+        expect(result['radarr'], 1);
+        verify(() => mockInstances.updateSonarrInstance(any())).called(1);
+        verify(() => mockInstances.updateRadarrInstance(any())).called(1);
+        verifyNever(() => mockInstances.addSonarrInstance(any()));
+        verifyNever(() => mockInstances.addRadarrInstance(any()));
+      },
+      timeout: const Timeout(Duration(seconds: 30)),
+    );
+
+    test(
+      'import v1 CBC backup restores instances',
+      () async {
+        // Build a v1-format backup using AES-CBC via the cryptography package
+        // so we can test the legacy decrypt path without the old encrypt library.
+        final password = 'legacy-password';
+        final salt = Uint8List.fromList(List.generate(16, (i) => i));
+        final iv = Uint8List.fromList(List.generate(16, (i) => i + 16));
+
+        final pbkdf2 = Pbkdf2(
+          macAlgorithm: Hmac.sha256(),
+          iterations: 600000,
+          bits: 256,
+        );
+        final key = await pbkdf2.deriveKeyFromPassword(
+          password: password,
+          nonce: salt,
+        );
+
+        final plaintext = utf8.encode(
+          '{"sonarrInstances":[{"id":"sonarr-a","name":"Sonarr A",'
+          '"baseUrl":"http://sonarr-a.local","apiKey":"apikey-sonarr-a",'
+          '"useBasicAuth":false,"basicAuthUsername":null,'
+          '"basicAuthPassword":null}],'
+          '"radarrInstances":[],'
+          '"activeSonarrId":"sonarr-a","activeRadarrId":null}',
+        );
+
+        // AesCbc.with256bits handles PKCS7 padding automatically
+        final cbcAlgorithm = AesCbc.with256bits(
+          macAlgorithm: MacAlgorithm.empty,
+        );
+        final secretBox = await cbcAlgorithm.encrypt(
+          plaintext,
+          secretKey: key,
+          nonce: iv,
+        );
+
+        final v1Json = jsonEncode({
+          'version': 1,
+          'exportDate': '2024-01-01T00:00:00.000Z',
+          'salt': base64Encode(salt),
+          'iv': base64Encode(iv),
+          'encryptedData': base64Encode(secretBox.cipherText),
+        });
+
+        final tempFile = File(
+          '${Directory.systemTemp.path}/arr_client_test_v1.json',
+        );
+        await tempFile.writeAsString(v1Json);
+        addTearDown(() {
+          if (tempFile.existsSync()) tempFile.deleteSync();
+        });
+
+        when(
+          () => mockInstances.getSonarrInstances(),
+        ).thenAnswer((_) async => []);
+        when(
+          () => mockInstances.getRadarrInstances(),
+        ).thenAnswer((_) async => []);
+        when(
+          () => mockInstances.addSonarrInstance(any()),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockInstances.setActiveSonarrId(any()),
+        ).thenAnswer((_) async {});
+
+        final result = await service.importInstances(password, tempFile.path);
+        expect(result['sonarr'], 1);
+        expect(result['radarr'], 0);
+      },
+      timeout: const Timeout(Duration(seconds: 30)),
+    );
+  });
+
+  group('validateBackup', () {
+    test(
+      'validateBackup returns counts and exportDate on valid backup',
+      () async {
+        when(
+          () => mockInstances.getSonarrInstances(),
+        ).thenAnswer((_) async => [_sonarrA]);
+        when(
+          () => mockInstances.getRadarrInstances(),
+        ).thenAnswer((_) async => [_radarrA]);
+        when(() => mockInstances.getActiveSonarrId()).thenReturn('sonarr-a');
+        when(() => mockInstances.getActiveRadarrId()).thenReturn('radarr-a');
+
+        final bytes = await service.exportInstances('validate-pw');
+        final tempFile = File(
+          '${Directory.systemTemp.path}/arr_client_test_validate.json',
+        );
+        await tempFile.writeAsBytes(bytes);
+        addTearDown(() {
+          if (tempFile.existsSync()) tempFile.deleteSync();
+        });
+
+        final info = await service.validateBackup('validate-pw', tempFile.path);
+
+        expect(info['valid'], isTrue);
+        expect(info['sonarrCount'], 1);
+        expect(info['radarrCount'], 1);
+        expect(info['exportDate'], isA<String>());
+        expect(info['activeSonarrId'], 'sonarr-a');
+      },
+      timeout: const Timeout(Duration(seconds: 30)),
+    );
+
+    test(
+      'validateBackup with wrong password throws',
+      () async {
+        when(
+          () => mockInstances.getSonarrInstances(),
+        ).thenAnswer((_) async => [_sonarrA]);
+        when(
+          () => mockInstances.getRadarrInstances(),
+        ).thenAnswer((_) async => []);
+        when(() => mockInstances.getActiveSonarrId()).thenReturn('sonarr-a');
+        when(() => mockInstances.getActiveRadarrId()).thenReturn(null);
+
+        final bytes = await service.exportInstances('correct-pw');
+        final tempFile = File(
+          '${Directory.systemTemp.path}/arr_client_test_validate_bad.json',
+        );
+        await tempFile.writeAsBytes(bytes);
+        addTearDown(() {
+          if (tempFile.existsSync()) tempFile.deleteSync();
+        });
+
+        await expectLater(
+          service.validateBackup('wrong-pw', tempFile.path),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('Invalid password'),
+            ),
+          ),
+        );
+      },
+      timeout: const Timeout(Duration(seconds: 30)),
+    );
+
+    test('validateBackup with non-existent file throws', () async {
+      await expectLater(
+        service.validateBackup('password', '/nonexistent/file.json'),
         throwsA(isA<Exception>()),
       );
     });
