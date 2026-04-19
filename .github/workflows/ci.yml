@@ -97,17 +97,13 @@ jobs:
 
   security:
     name: Security Scan
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
     needs: analyze
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Run OSV Scanner
-        uses: google/osv-scanner-action@v2.3.5
-        with:
-          scan-args: |-
-            --lockfile=pubspec.lock
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.5
+    with:
+      scan-args: |-
+        --lockfile=pubspec.lock
 
