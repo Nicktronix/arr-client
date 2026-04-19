@@ -72,6 +72,14 @@ Mixin for all data-loading screens. Provides the standard loading → loaded/err
 
 ---
 
+## Flutter tooling rules
+
+- Always use `flutter pub` not `dart pub` — `dart pub` fails in Flutter projects (Flutter SDK not on dart's path)
+- Always use `flutter pub run build_runner` not `dart run build_runner` — same reason
+- `flutter test`, `flutter analyze`, `dart format` — format is the exception, `dart format` works fine
+
+---
+
 ## Security rules
 
 - **Never commit** API keys, passwords, tokens, real instance URLs, or backup passwords
