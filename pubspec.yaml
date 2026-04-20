@@ -42,7 +42,7 @@ dependencies:
   flutter_secure_storage: ^10.0.0
   
   # Local storage for non-sensitive data
-  shared_preferences: ^2.2.2
+  shared_preferences: ^2.5.5
   
   # Biometric authentication
   local_auth: ^3.0.0
