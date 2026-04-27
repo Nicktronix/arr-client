@@ -56,7 +56,7 @@ dependencies:
   # File picker for import/export
   file_picker: ^11.0.2
   get_it: ^9.2.1
-  injectable: ^2.7.1+4
+  injectable: ^3.0.0
   freezed_annotation: ^3.1.0
   json_annotation: ^4.11.0
 
@@ -70,7 +70,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-  injectable_generator: ^2.12.1
+  injectable_generator: ^3.0.2
   build_runner: ^2.4.0
   freezed: ^3.2.5
   json_serializable: ^6.13.1
