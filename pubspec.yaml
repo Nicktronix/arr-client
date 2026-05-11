@@ -39,7 +39,7 @@ dependencies:
   http: ^1.2.0
   
   # Secure storage for credentials
-  flutter_secure_storage: ^10.0.0
+  flutter_secure_storage: ^10.1.0
   
   # Local storage for non-sensitive data
   shared_preferences: ^2.2.2
