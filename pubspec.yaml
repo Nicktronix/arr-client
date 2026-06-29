@@ -48,7 +48,7 @@ dependencies:
   local_auth: ^3.0.0
   
   # Date formatting
-  intl: ^0.20.1
+  intl: ^0.20.3
   
   # Encryption for backup/restore
   cryptography: ^2.9.0
