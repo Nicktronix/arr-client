@@ -35,9 +35,10 @@ A mobile client for [Sonarr](https://sonarr.tv/) and [Radarr](https://radarr.vid
    cd arr-client
    ```
 
-2. **Install dependencies**
+2. **Install dependencies and generate code**
    ```bash
    flutter pub get
+   flutter pub run build_runner build
    ```
 
 3. **Run the app**

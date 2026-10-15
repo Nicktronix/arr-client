@@ -2,263 +2,187 @@
 
 ## Overview
 
-This project uses GitHub Actions for automated testing, security scanning, and release builds. Releases are intentional — you create a tag manually when you're ready to ship, and the pipeline takes care of the rest.
+GitHub Actions runs analysis, tests, and security scanning on every PR and push to `develop`/`main`. Releases are intentional: you push a version tag by hand, and the release workflow builds a signed Android APK and publishes a GitHub Release.
 
-**Note**: iOS builds are not included in CI/CD and must be built locally. See the iOS build section below for instructions.
+iOS builds are not part of CI/CD and must be built locally (see [iOS Build Instructions](#ios-build-instructions)).
 
-## Workflow Stages
+The `/release` Claude command walks through every step below with confirmation before each commit or push.
 
-### 1. **Analyze** (Runs on every PR and push to main/develop)
-- Code quality analysis via `flutter analyze`
-- Code formatting check via `dart format`
-- Fails if code has errors or isn't properly formatted
+---
 
-### 2. **Test** (Runs on every PR and push to main/develop)
-- Unit tests with coverage reporting
-- Coverage uploaded to Codecov (optional)
-- Fails if tests don't pass
+## CI Pipeline (`.github/workflows/ci.yml`)
 
-### 3. **Security** (Runs on every PR and push to main/develop)
-- Dependency scanning via `flutter pub outdated`
-- Non-blocking (shows warnings but doesn't fail builds)
-- GitHub Dependabot automatically creates PRs for security updates
+Runs on PRs to `develop`/`main`, pushes to `develop`/`main`, and manual dispatch. Markdown-only changes, `LICENSE`, `.gitignore`, and `.github/dependabot.yml` are ignored on push; PR runs consider the whole PR diff.
 
-### 4. **Build** (Runs ONLY on version tags — triggered by you pushing a tag)
-- Builds a signed Android APK (Ubuntu runner)
-- Version embedded from the tag name
-- Requires `ANDROID_KEYSTORE_FILE`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` secrets to be configured in the repo
+| Job | What it does | Required check |
+|-----|--------------|----------------|
+| **Code Analysis** | `build_runner` code generation, `dart format --set-exit-if-changed lib/ test/`, `flutter analyze --no-fatal-infos` | Yes |
+| **Unit Tests** | `flutter test --coverage`, fails below 10% line coverage, uploads to Codecov | Yes |
+| **Security Scan** | Google OSV scanner against `pubspec.lock` | Yes |
 
-### 5. **Release** (Runs after build, same tag trigger)
-- Creates GitHub Release automatically
-- Attaches signed Android APK as downloadable asset
-- Generates release notes with installation instructions
+`codecov/patch` also reports on PRs but is informational only.
 
-## Git Branching Strategy
+### Flutter version
 
-**Modified Git Flow**: develop for integration, release branches for selective releases.
+The Flutter version is pinned in three places and must match:
+- `.github/workflows/ci.yml` (both jobs)
+- `.github/workflows/release.yml`
+- `README.md` (badge and prerequisites)
+
+Bump all three together, and use the same version locally (`fvm`).
+
+---
+
+## Release Pipeline (`.github/workflows/release.yml`)
+
+Runs **only** when a tag matching `v*.*.*` is pushed. Nothing is tagged automatically.
+
+1. **Build Android APK**: sets up JDK 21 and the pinned Flutter version, runs `build_runner` (generated files are gitignored), writes `android/key.properties` from secrets, then runs `flutter build apk --release --obfuscate --split-debug-info`.
+   - `versionName` comes from the tag (`v1.2.3` → `1.2.3`)
+   - `versionCode` is the workflow run number (`github.run_number`), not the `+N` in `pubspec.yaml`, so it always increases between releases
+   - Uploads the APK and the obfuscation debug symbols (kept 90 days) as artifacts
+2. **Create GitHub Release**: `gh release create` publishes the release for the tag, with the APK attached and standard install notes. `--verify-tag` aborts if the tag doesn't exist.
+
+The workflow file that runs is the one **in the tagged commit**. A fix to `release.yml` only applies once it's on `main` and the tag points at a commit that includes it.
+
+### Actions policy
+
+The repo only allows GitHub-owned actions, verified creators, and an explicit allow-list (`subosito/flutter-action`, `google/osv-scanner-action`). A workflow that references anything else fails with `startup_failure` before any job runs, and produces no logs.
+
+- Prefer GitHub-owned actions (`actions/*`) and the preinstalled `gh` CLI over third-party actions, especially in jobs with write permissions.
+- If a third-party action is unavoidable, pin it to a commit SHA and add it to the allow-list (Settings → Actions → General).
+- Pass `${{ github.* }}` values into `run:` scripts through `env:`, not inline.
+
+---
+
+## Branching Model
 
 ```
-develop (default, protected) ← Integration testing, pipeline runs here
-├── feature/new-feature
-├── fix/bug-fix
-├── optimize/performance
-└── fix/integration-issue
+main (protected)          ← Releases only; every commit is a shipped version
+  └── release/vX.Y.Z      ← Branched from main, PR → main
 
-main (protected) ← Releases only, auto-tagged on merge
-  ├── release/v1.2.3
-  └── release/v1.3.0
+develop (default, protected) ← Integration branch
+  ├── feature/short-name
+  ├── fix/short-name
+  ├── chore/short-name
+  └── optimize/short-name
 ```
 
-**Workflow Behavior**:
-- ✅ Runs on **Pull Requests to develop** (validates before merge)
-- ✅ Runs on **develop branch pushes** (validates after merge)
-- ✅ Runs on **Pull Requests to main** (validates release branch)
-- ✅ **Build and release** triggered when you push a version tag (e.g. `v1.2.3`)
-- ❌ Does NOT run on feature/fix branches
-- ❌ Does NOT auto-tag — releases are created intentionally
+Feature, fix, and chore branches branch from `develop` and PR back to `develop`. See [`.claude/context/branching-strategy.md`](.claude/context/branching-strategy.md) for naming and the issue → branch → PR lifecycle.
 
-**Why workflows run twice**:
-1. **On PR**: Pre-merge validation (catches issues before they land)
-2. **After merge**: Post-merge validation (catches merge conflicts, integration issues)
-
-This is intentional and follows GitHub Actions best practices.
-
-## Release Workflow Examples
-
-These examples show how to work with the branching strategy in practice.
-
-### 1. Feature Development (Isolated Testing)
-
-```bash
-# Create feature branch from develop
-git checkout develop
-git pull
-git checkout -b feature/new-filters
-
-# Develop and test in isolation
-git commit -m "feat: add series filters"
-git push origin feature/new-filters
-
-# Test locally
-flutter test
-flutter run -d android
-
-# When feature works in isolation, merge to develop for integration
-# Create MR: feature/new-filters → develop (triggers CI)
-# After approval, merge
-```
-
-### 2. Integration Testing (develop)
-
-```bash
-# Multiple features merge to develop
-git checkout develop
-# Now contains: feature A, feature B, optimization C
-
-# Test integration
-flutter run
-# Oh no! Feature A breaks Feature B
-
-# Create fix branch
-git checkout -b fix/feature-a-b-conflict develop
-# Fix the issue...
-git commit -m "fix: resolve feature A/B conflict"
-# MR: fix/feature-a-b-conflict → develop
-```
-
-### 3. Selective Release (Release Branch)
-
-```bash
-# You want to release: optimization C + old fix D
-# But NOT: feature A, feature B (still broken)
-
-# Create release branch from main (last stable release)
-git checkout main
-git pull
-git checkout -b release/v1.2.3
-
-# Cherry-pick what's ready (EXPLICITLY ADD, don't remove)
-git cherry-pick <optimize-C-commits>
-git cherry-pick <fix-D-commits>
-
-# Update version
-# Edit pubspec.yaml: version: 1.2.3+4
-git add pubspec.yaml
-git commit -m "chore: bump version to 1.2.3"
-git push origin release/v1.2.3
-
-# Test release candidate
-flutter test
-flutter run -d android
-flutter run -d ios
-
-# Create PR: release/v1.2.3 → main (triggers CI)
-# After approval and merge:
-#   1. Workflow runs on main
-#   2. Auto-tags main with v1.2.3
-#   3. Tag triggers build workflow (APK/IPA)
-#   4. Release created on GitHub
-
-# Important: Merge release branch back to develop
-git checkout develop
-git merge release/v1.2.3  # Brings version bump back
-git push origin develop
-
-# Delete release branch (tag preserves it)
-git branch -d release/v1.2.3
-git push origin :release/v1.2.3
-```
-
-### 4. Next Release
-
-```bash
-# Later, when feature A/B conflict is fixed
-git checkout develop
-# Now contains: optimization C, fix D (already released),
-#               feature A, feature B (now working together)
-
-# Create next release
-git checkout main
-git pull
-git checkout -b release/v1.3.0
-
-# Cherry-pick features A and B
-git cherry-pick <feature-A-commits>
-git cherry-pick <feature-B-commits>
-
-# Update version and repeat release process
-```
-
-## Key Advantages
-
-✅ **develop = integration testing** - find issues early  
-✅ **Release branch from main** - start from stable state  
-✅ **Explicitly add, don't remove** - clear intent, no mistakes  
-✅ **Ship what works** - unblocked releases  
-✅ **Auto-tagging** - no manual tag step, can't forget  
-✅ **main always stable** - only contains releases  
+`main`, `develop`, and `release/*` are protected by rulesets: changes go through PRs, the three required checks must pass, and 1 approving review is required. Since you can't approve your own PR, the repo owner merges with the admin bypass. Version tags can only be created, not updated or deleted, without bypass. Merged branches are deleted from the remote automatically.
 
 ---
 
 ## Release Process
 
-This section covers everything you need to create and distribute a release.
+### 1. Create the release branch
 
-### Version Management
-
-### Update Version in pubspec.yaml
-
-Before creating a release tag, update the version in `pubspec.yaml`:
-
-```yaml
-version: 1.2.3+456
-#        │ │ │  └── Build number (auto-incremented by CI)
-#        │ │ └──── Patch version
-#        │ └────── Minor version
-#        └──────── Major version
+```bash
+git checkout main && git pull
+git checkout -b release/vX.Y.Z
 ```
 
-**Version Numbering**:
-- **Major** (1.x.x): Breaking changes
-- **Minor** (x.1.x): New features, backwards compatible
-- **Patch** (x.x.1): Bug fixes only
+Bring in the work being released:
 
-### Release Checklist
+- **Shipping everything on `develop`** (the usual case): fast-forward. This keeps the original commit hashes, so the back-merge in step 6 is trivial.
+  ```bash
+  git fetch origin
+  git merge --ff-only origin/develop
+  ```
+- **Selective release**: cherry-pick only what's ready, in order. Explicitly add; don't remove.
+  ```bash
+  git cherry-pick <commit>...
+  ```
 
-- [ ] All tests passing on main branch
-- [ ] Version updated in `pubspec.yaml`
-- [ ] CHANGELOG updated (optional but recommended)
-- [ ] Merge develop into main
-- [ ] Create and push version tag
+### 2. Version and changelog
 
-### Creating a Release
+- `pubspec.yaml`: `version: X.Y.Z+N`. Increment `N` by 1 over the last release.
+  - **Major**: breaking changes · **Minor**: new features · **Patch**: bug fixes only
+- `CHANGELOG.md`: move the `[Unreleased]` entries into `## [X.Y.Z] - YYYY-MM-DD` (the actual release date), leave an empty `[Unreleased]` heading, and update the Version History list.
+- If users must do anything special to upgrade, put a note at the top of the version's section. The release page links to the changelog.
 
-The easiest way is to use the `/release` Claude command, which runs all pre-flight checks, updates the version, and creates the tag for you.
-
-**Manual process if needed:**
-
-1. **Update Version**
-   ```bash
-   # Edit pubspec.yaml: version: 1.2.3+N (increment build number)
-   git add pubspec.yaml CHANGELOG.md
-   git commit -m "chore: bump version to 1.2.3"
-   git push origin main
-   ```
-
-2. **Create and push tag**
-   ```bash
-   git tag -a v1.2.3 -m "Release 1.2.3"
-   git push origin v1.2.3
-   ```
-
-3. **Monitor Workflow**
-   ```bash
-   gh run list --workflow=release.yml --limit=5
-   ```
-   Or watch in the Actions tab. Android build takes ~5-10 minutes.
-
-4. **Access Release**
-   - Once complete, go to the Releases section
-   - Download the signed APK from release assets
-
-### Distributing Builds
-
-Once the release is created, you can distribute builds to users.
-
-#### Android Distribution
-
-**Direct Download**:
-1. Share GitHub release URL with users
-2. They download the APK
-3. Enable "Install from Unknown Sources" in Android settings
-4. Install APK
-
-**Example release URL**:
-```
-https://github.com/Nicktronix/arr-client/releases/latest
+```bash
+git add pubspec.yaml CHANGELOG.md
+git commit -m "chore: bump version to X.Y.Z"
+git push -u origin release/vX.Y.Z
 ```
 
-#### iOS Build Instructions
+### 3. PR to main
+
+```bash
+gh pr create --base main --head release/vX.Y.Z --title "Release vX.Y.Z" \
+  --body "Release vX.Y.Z
+
+See CHANGELOG.md for details."
+```
+
+Wait for the three required checks, then merge (merge commit) with the admin bypass.
+
+### 4. Tag
+
+```bash
+git checkout main && git pull
+git tag -a vX.Y.Z -m "Release X.Y.Z"
+git push origin vX.Y.Z
+```
+
+### 5. Verify the release
+
+```bash
+gh run list --workflow=release.yml --limit 1
+gh run watch <run-id>
+```
+
+The Android build takes about 5–10 minutes. Then check the published APK is signed with the release key, not a debug key:
+
+```bash
+gh release download vX.Y.Z --pattern '*.apk' --dir /tmp/arr-release
+apksigner verify --print-certs /tmp/arr-release/*.apk   # DN must not be "CN=Android Debug"
+```
+
+### 6. Back-merge and clean up
+
+```bash
+git checkout develop && git pull
+git merge release/vX.Y.Z      # brings the version/changelog commit back
+git push origin develop
+git branch -d release/vX.Y.Z  # the remote branch is deleted on PR merge
+```
+
+### 7. Close shipped issues
+
+Close each issue included in the release with "Shipped in vX.Y.Z" and move it from **Release Ready** to **Done** on the project board. Issues are never closed by PR merges.
+
+### Fixing a failed release
+
+If the tag build fails, nothing was published:
+
+1. Fix the cause on `develop` (fix branch → PR), then bring it to `main` through a release branch and PR.
+2. Move the tag to the new `main` commit (needs the tag-ruleset bypass):
+   ```bash
+   git push origin :refs/tags/vX.Y.Z
+   git tag -d vX.Y.Z
+   git checkout main && git pull
+   git tag -a vX.Y.Z -m "Release X.Y.Z"
+   git push origin vX.Y.Z
+   ```
+
+Only move a tag that never produced a published release. Once users have downloaded a version, ship a fix as a new patch version instead.
+
+---
+
+## Distributing Builds
+
+### Android
+
+Share the release page (`https://github.com/Nicktronix/arr-client/releases/latest`). Users download the APK, allow installs from unknown sources, and install it.
+
+### Signing key
+
+Releases from v1.1.0 onward are signed with the release keystore stored in repo secrets. **v1.0.0 was signed with a CI-generated debug key**, so v1.0.0 installs can't be updated in place: users must export a backup, uninstall, install the new version, and import. Losing the keystore would force the same reinstall on every user, so keep a secure copy outside GitHub.
+
+### iOS Build Instructions
 
 iOS builds require code signing and are not provided in GitHub releases. Users must build locally:
 
@@ -276,9 +200,10 @@ iOS builds require code signing and are not provided in GitHub releases. Users m
    git checkout v1.2.3  # Replace with desired version
    ```
 
-2. **Install dependencies**:
+2. **Install dependencies and generate code** (generated files aren't committed):
    ```bash
    flutter pub get
+   flutter pub run build_runner build
    ```
 
 3. **Open Xcode workspace**:
@@ -315,18 +240,18 @@ iOS builds require code signing and are not provided in GitHub releases. Users m
 
 ---
 
-## Workflow Configuration Details
+## Configuration
 
 ### Required GitHub Secrets
 
-**For release builds** (required — releases will fail without these):
+**For release builds** (releases fail without these):
 - `ANDROID_KEYSTORE_FILE`: Base64-encoded keystore (`base64 -w 0 your-keystore.jks`)
 - `ANDROID_KEYSTORE_PASSWORD`: Keystore password
 - `ANDROID_KEY_ALIAS`: Key alias
 - `ANDROID_KEY_PASSWORD`: Key password
 
-**Optional**:
-- `CODECOV_TOKEN`: For test coverage reporting (free for public repos)
+**For CI**:
+- `CODECOV_TOKEN`: Coverage upload (`fail_ci_if_error: true`, so the Unit Tests job fails without it)
 
 **Generating a keystore** (one-time setup):
 ```bash
@@ -335,161 +260,53 @@ keytool -genkey -v -keystore arr-client.jks -keyalg RSA -keysize 2048 -validity 
 base64 -w 0 arr-client.jks  # paste output into ANDROID_KEYSTORE_FILE secret
 ```
 
-### GitHub Runners
+Local release builds without `android/key.properties` fall back to debug signing.
 
-**GitHub-Hosted Runners** (Free for public repos):
-- ✅ Android builds work on Ubuntu runners
-- ✅ 2,000 minutes/month free for private repos
-- ✅ Unlimited for public repos
+### Dependency updates
 
-No self-hosted runner needed for Android builds! iOS requires local building with Xcode.
-
-## Security Scanning
-
-### GitHub Security Features (Free)
-
-GitHub provides **FREE security features**:
-
-1. **Dependabot**: Automatically scans for vulnerable dependencies
-2. **Security Advisories**: CVE database integration
-3. **Dependency Graph**: Visualize all dependencies
-4. **Code Scanning** (Advanced Security): SAST for Dart code (free for public repos)
-
-### Workflow Security Checks
-
-The workflow includes:
-
-1. **`flutter pub outdated`**: Lists packages with available updates (non-blocking)
-2. **Dependabot PRs**: Automatic security update pull requests
-3. **Version verification**: Checks pubspec.yaml consistency
-
-### When Scans Run
-
-- **Pull Requests**: Non-blocking, shows warnings
-- **Main/Develop Branch**: Non-blocking, informational only
-- **Dependabot**: Runs daily, creates PRs automatically
-
-### Manual Security Review
-
-1. Review Dependabot PRs in the Security tab
-2. Check workflow output for `flutter pub outdated` warnings
-3. Update `pubspec.yaml` and run `flutter pub upgrade`
-4. For security advisories, check: https://github.com/advisories
-
-**Recommended**: Enable Dependabot alerts in Settings → Security & analysis.
-
----
-
-## Best Practices
-
-### Before Every Release
-
-1. ✅ Run `flutter analyze` locally
-2. ✅ Run `flutter test` locally
-3. ✅ Test on at least one physical device
-4. ✅ Update version in `pubspec.yaml`
-5. ✅ Update [CHANGELOG.md](CHANGELOG.md)
-
-### For Testing Builds
-
-Use pre-release versions: `v1.2.0-beta.1`, `v1.2.0-rc.1`
-- Don't use these for production releases
-- Tag pattern still matches and triggers builds
-
-### Managing Artifact Storage
-
-- Artifacts expire after 90 days (configurable in workflow)
-- Public repos have unlimited storage
-- Private repos have storage limits
-- Delete old releases if needed
+Dependabot (`.github/dependabot.yml`) opens PRs weekly for pub packages and monthly for GitHub Actions. Review them like any PR to `develop`. When doing a bulk update instead, close the superseded Dependabot PRs with a link to the replacing PR.
 
 ---
 
 ## Troubleshooting
 
-### Workflow Fails on Analyze
+### Analyze or format check fails in CI
 
-```
-Error: flutter analyze found issues
-```
-
-**Fix**: Run locally before pushing:
 ```bash
-flutter analyze
 dart format lib/ test/
+flutter analyze
 ```
 
-### Workflow Fails on Test
+Check that your local Flutter matches the pinned version. A different formatter or lint set gives different results.
 
-```
-Error: Tests failed
-```
+### Tests fail in CI
 
-**Fix**: Run tests locally:
 ```bash
+flutter pub run build_runner build
 flutter test
 ```
 
-### Auto-Tag Not Created
+### Release workflow shows `startup_failure`
 
-```
-Error: Tag already exists
-```
+A referenced action isn't allowed by the repo's actions policy (see [Actions policy](#actions-policy)). There are no logs. Check every `uses:` in `release.yml` against the allow-list, then follow [Fixing a failed release](#fixing-a-failed-release).
 
-**Check**:
-- Version in `pubspec.yaml` must be incremented
-- Tag must not already exist
-- Verify you pushed to `main` branch
+### Android APK won't install ("App not installed")
 
-### Android APK Won't Install on Phone
-
-```
-Error: App not installed
-```
-
-**Fix**: 
-1. Uninstall old version first
-2. Enable "Install from Unknown Sources"
-3. Check Android version compatibility (minSdkVersion in android/app/build.gradle)
-
-### Release Not Created
-
-**Check**:
-- Tag must exist and match pattern: `v1.2.3`
-- Android and iOS builds must complete successfully
-- Check Actions tab for workflow status
-- Verify workflow has `contents: write` permission
+The installed app is signed with a different key (for example, upgrading from v1.0.0 or from a local debug build). Export a backup, uninstall, install, then import the backup.
 
 ---
 
 ## Quick Reference
 
-### Tag and Release (Most Common)
 ```bash
-# Update version in pubspec.yaml first!
-git add pubspec.yaml
-git commit -m "chore: bump version to X.Y.Z"
-git push origin main
-
+# Release (after release PR is merged)
+git checkout main && git pull
 git tag -a vX.Y.Z -m "Release X.Y.Z"
 git push origin vX.Y.Z
-```
 
-### Delete a Tag (if mistake)
-```bash
-git tag -d v1.2.3
-git push origin :refs/tags/v1.2.3
-```
+# Watch release build
+gh run list --workflow=release.yml --limit 1
 
-### View All Tags
-```bash
+# List tags
 git tag -l
-```
-
-### Check Workflow Status
-```bash
-# GitHub UI: Actions tab
-# Or via CLI with GitHub CLI:
-gh run list
-gh run view
 ```
