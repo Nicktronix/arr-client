@@ -48,6 +48,7 @@ Feature suggestions are welcome! Please:
    git clone https://github.com/Nicktronix/arr-client.git
    cd arr-client
    flutter pub get
+   flutter pub run build_runner build  # generated files aren't committed
    ```
 
 2. **Create a feature branch**:
