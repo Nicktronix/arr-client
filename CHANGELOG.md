@@ -7,16 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- **Toolchain**: Flutter 3.47.7 pinned across CI, release workflow, and README; Android Gradle Plugin 9.1.0, Gradle 9.3.1, Kotlin 2.4.0 with built-in Kotlin; release builds use JDK 21
-- **Dependencies**: all packages updated to latest, including major bumps to `flutter_secure_storage` 11, `file_picker` 13, `freezed` 4, `injectable` 3, and `very_good_analysis` 11
-- **GitHub Actions**: `actions/checkout` 7, `codecov/codecov-action` 7, `softprops/action-gh-release` 3, `osv-scanner-action` 2.6.0
-
-### Fixed
-- Switching Sonarr/Radarr instances no longer fails with "Client is already closed" until the app is restarted
-- Release workflow now runs code generation before building — generated files are gitignored, so tag builds would otherwise fail to compile
-
-## [1.1.0] - 2026-04-19
+## [1.1.0] - 2026-10-15
 
 ### Added
 - **Queue screen enhancements**
@@ -66,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **AppStateManager** is now the single mutation point for all instance CRUD — no direct InstanceManager calls from screens
 
 ### Fixed
+- Switching Sonarr/Radarr instances no longer fails with "Client is already closed" until the app is restarted
 - Calendar and series list screens: runtime crash `List<dynamic> is not a subtype of num?` — `SeasonStatistics.releaseGroups` was typed `double?` (spec: `List<String>`), `SeasonResource.images` was typed `String?` (spec: `List<MediaCover>`)
 - API client: `on ApiException { rethrow }` guard prevents double-wrapping of HTTP errors
 - Sonarr/Radarr `PUT /series/{id}` and `PUT /movie/{id}` — ID now correctly included in URL
@@ -85,11 +77,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dependency injection with `get_it` + `injectable` — services no longer manually constructed singletons
 - API response models migrated from `Map<String, dynamic>` to `freezed` + `json_serializable` typed models
 - `very_good_analysis` strict lint rules enforced — all warnings treated as errors
-- Test suite expanded from 21 to 137 tests (unit + widget)
+- Test suite expanded from 21 to 139 tests (unit + widget)
 - CI: 10% line coverage threshold enforced — build fails below baseline
 - CI: `google/osv-scanner` replaces `flutter pub outdated` — scans `pubspec.lock` against OSV vulnerability database
-- CI: Flutter bumped to 3.41.2 (Dart 3.11.4)
-- Dependencies updated: `file_picker 11.x`, `mocktail 1.0.5`, `cupertino_icons 1.0.9`
+- Flutter 3.47.7 (Dart 3.13) pinned across CI, release workflow, and README
+- Dependencies updated to latest, including major bumps to `flutter_secure_storage` 11, `file_picker` 13, `freezed` 4, `injectable` 3, `very_good_analysis` 11, `cupertino_icons` 2
+- Android: Gradle Plugin 9.1.0, Gradle 9.3.1, Kotlin 2.4.0 with built-in Kotlin; release builds use JDK 21
+- GitHub Actions: `actions/checkout` 7, `codecov/codecov-action` 7, `softprops/action-gh-release` 3, `osv-scanner-action` 2.6.0
+- Release workflow runs code generation before building (generated files are gitignored)
 - Branch protection on `develop`: all 3 CI jobs required before merge
 
 ## [1.0.0] - 2025-12-17
@@ -157,7 +152,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
-- **[1.1.0]** - 2026-04-19 - Queue enhancements, manual import, episode/movie detail, DI, typed models, OSV security scanning
+- **[1.1.0]** - 2026-10-15 - Queue enhancements, manual import, episode/movie detail, DI, typed models, OSV security scanning
 - **[1.0.0]** - 2025-12-17 - Initial Public Release
 
 <!-- Link Definitions -->
