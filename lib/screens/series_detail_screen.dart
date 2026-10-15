@@ -425,15 +425,13 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
       child: InkWell(
         onTap: totalEpisodes > 0
             ? () {
-                unawaited(
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SeasonDetailScreen(
-                        seriesId: _series!.id!,
-                        seasonNumber: seasonNumber,
-                        seriesTitle: _series!.title ?? 'Unknown',
-                      ),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (context) => SeasonDetailScreen(
+                      seriesId: _series!.id!,
+                      seasonNumber: seasonNumber,
+                      seriesTitle: _series!.title ?? 'Unknown',
                     ),
                   ),
                 );
@@ -838,9 +836,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Error updating series: ${ErrorFormatter.format(e)}',
-            ),
+            content: Text('Error updating series: ${ErrorFormatter.format(e)}'),
             backgroundColor: Colors.red,
           ),
         );

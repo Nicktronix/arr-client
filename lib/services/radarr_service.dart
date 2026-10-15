@@ -58,23 +58,29 @@ class RadarrService {
 
   Future<RadarrSystemStatus> getSystemStatus() async {
     final client = await _api;
-    return client.getObject('/system/status', RadarrSystemStatus.fromJson);
+    return await client.getObject(
+      '/system/status',
+      RadarrSystemStatus.fromJson,
+    );
   }
 
   Future<List<MovieResource>> getMovies() async {
     final client = await _api;
-    return client.getList('/movie', MovieResource.fromJson);
+    return await client.getList('/movie', MovieResource.fromJson);
   }
 
   Future<MovieResource> getMovieById(int id) async {
     if (id <= 0) throw ArgumentError('Invalid movie ID: $id');
     final client = await _api;
-    return client.getObject('/movie/$id', MovieResource.fromJson);
+    return await client.getObject('/movie/$id', MovieResource.fromJson);
   }
 
   Future<List<MovieResource>> searchMovies(String query) async {
     final client = await _api;
-    return client.getList('/movie/lookup?term=$query', MovieResource.fromJson);
+    return await client.getList(
+      '/movie/lookup?term=$query',
+      MovieResource.fromJson,
+    );
   }
 
   Future<List<MovieResource>> getCalendar({
@@ -88,12 +94,12 @@ class RadarrService {
       final endStr = end.toIso8601String().split('T')[0];
       endpoint += '?start=$startStr&end=$endStr';
     }
-    return client.getList(endpoint, MovieResource.fromJson);
+    return await client.getList(endpoint, MovieResource.fromJson);
   }
 
   Future<List<RadarrQueueItem>> getQueue() async {
     final client = await _api;
-    return client.getPagedList(
+    return await client.getPagedList(
       '/queue?pageSize=500&sortKey=timeleft&sortDirection=ascending',
       RadarrQueueItem.fromJson,
     );
@@ -138,27 +144,30 @@ class RadarrService {
 
   Future<List<QualityProfileResource>> getQualityProfiles() async {
     final client = await _api;
-    return client.getList('/qualityProfile', QualityProfileResource.fromJson);
+    return await client.getList(
+      '/qualityProfile',
+      QualityProfileResource.fromJson,
+    );
   }
 
   Future<List<RootFolderResource>> getRootFolders() async {
     final client = await _api;
-    return client.getList('/rootFolder', RootFolderResource.fromJson);
+    return await client.getList('/rootFolder', RootFolderResource.fromJson);
   }
 
   Future<List<TagResource>> getTags() async {
     final client = await _api;
-    return client.getList('/tag', TagResource.fromJson);
+    return await client.getList('/tag', TagResource.fromJson);
   }
 
   Future<TagResource> getTagById(int id) async {
     final client = await _api;
-    return client.getObject('/tag/$id', TagResource.fromJson);
+    return await client.getObject('/tag/$id', TagResource.fromJson);
   }
 
   Future<List<RadarrRelease>> searchMovieReleases(int movieId) async {
     final client = await _api;
-    return client.getList(
+    return await client.getList(
       '/release?movieId=$movieId',
       RadarrRelease.fromJson,
       timeout: const Duration(seconds: 60),
@@ -178,7 +187,7 @@ class RadarrService {
     int pageSize = 50,
   }) async {
     final client = await _api;
-    return client.getPagedList(
+    return await client.getPagedList(
       '/history?page=$page&pageSize=$pageSize&sortKey=date&sortDirection=descending',
       RadarrHistoryRecord.fromJson,
     );
@@ -186,12 +195,12 @@ class RadarrService {
 
   Future<List<HealthResource>> getHealth() async {
     final client = await _api;
-    return client.getList('/health', HealthResource.fromJson);
+    return await client.getList('/health', HealthResource.fromJson);
   }
 
   Future<List<DiskSpaceResource>> getDiskspace() async {
     final client = await _api;
-    return client.getList('/diskspace', DiskSpaceResource.fromJson);
+    return await client.getList('/diskspace', DiskSpaceResource.fromJson);
   }
 
   Future<void> testAllIndexers() async {
@@ -209,7 +218,7 @@ class RadarrService {
     bool filterExistingFiles = false,
   }) async {
     final client = await _api;
-    return client.getList(
+    return await client.getList(
       '/manualimport?downloadId=$downloadId&filterExistingFiles=$filterExistingFiles',
       RadarrManualImport.fromJson,
     );
@@ -226,6 +235,6 @@ class RadarrService {
 
   Future<List<LanguageResource>> getLanguages() async {
     final client = await _api;
-    return client.getList('/language', LanguageResource.fromJson);
+    return await client.getList('/language', LanguageResource.fromJson);
   }
 }

@@ -250,10 +250,7 @@ class _MovieListScreenState extends State<MovieListScreen>
                         title: Text('Recently Added'),
                         value: 'added',
                       ),
-                      RadioListTile<String>(
-                        title: Text('Year'),
-                        value: 'year',
-                      ),
+                      RadioListTile<String>(title: Text('Year'), value: 'year'),
                     ],
                   ),
                 ),

@@ -32,9 +32,9 @@ void main() {
     );
 
     test('canCheckBiometrics returns false when localAuth throws', () async {
-      when(() => mockAuth.canCheckBiometrics).thenThrow(
-        PlatformException(code: 'NotAvailable'),
-      );
+      when(
+        () => mockAuth.canCheckBiometrics,
+      ).thenThrow(PlatformException(code: 'NotAvailable'));
       expect(await service.canCheckBiometrics(), isFalse);
     });
 
@@ -59,9 +59,9 @@ void main() {
 
     test('isDeviceSupported returns true when biometrics available', () async {
       when(() => mockAuth.canCheckBiometrics).thenAnswer((_) async => true);
-      when(() => mockAuth.getAvailableBiometrics()).thenAnswer(
-        (_) async => [BiometricType.fingerprint],
-      );
+      when(
+        () => mockAuth.getAvailableBiometrics(),
+      ).thenAnswer((_) async => [BiometricType.fingerprint]);
       expect(await service.isDeviceSupported(), isTrue);
     });
   });

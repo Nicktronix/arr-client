@@ -72,7 +72,7 @@ class ApiClient {
 
   /// Make a GET request to the API
   Future<dynamic> get(String endpoint, {Duration? timeout}) async {
-    return _withRetry(
+    return await _withRetry(
       () => _httpClient
           .get(Uri.parse(_url(endpoint)), headers: _headers)
           .timeout(timeout ?? _timeout),
@@ -118,7 +118,7 @@ class ApiClient {
     Map<String, dynamic> data, {
     Duration? timeout,
   }) async {
-    return _withRetry(
+    return await _withRetry(
       () => _httpClient
           .post(
             Uri.parse(_url(endpoint)),
@@ -131,7 +131,7 @@ class ApiClient {
 
   /// Make a PUT request to the API
   Future<dynamic> put(String endpoint, Map<String, dynamic> data) async {
-    return _withRetry(
+    return await _withRetry(
       () => _httpClient
           .put(
             Uri.parse(_url(endpoint)),
@@ -144,7 +144,7 @@ class ApiClient {
 
   /// Make a PUT request with a list body to the API
   Future<dynamic> putList(String endpoint, List<dynamic> data) async {
-    return _withRetry(
+    return await _withRetry(
       () => _httpClient
           .put(
             Uri.parse(_url(endpoint)),
@@ -157,7 +157,7 @@ class ApiClient {
 
   /// Make a DELETE request to the API
   Future<dynamic> delete(String endpoint) async {
-    return _withRetry(
+    return await _withRetry(
       () => _httpClient
           .delete(Uri.parse(_url(endpoint)), headers: _headers)
           .timeout(_timeout),

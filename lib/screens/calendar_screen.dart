@@ -402,14 +402,12 @@ class _CalendarScreenState extends State<CalendarScreen>
         trailing: const Icon(Icons.chevron_right),
         onTap: () {
           if (seriesId != null) {
-            unawaited(
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => SeriesDetailScreen(
-                    seriesId: seriesId,
-                    seriesTitle: seriesTitle,
-                  ),
+            Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (context) => SeriesDetailScreen(
+                  seriesId: seriesId,
+                  seriesTitle: seriesTitle,
                 ),
               ),
             );
@@ -476,13 +474,11 @@ class _CalendarScreenState extends State<CalendarScreen>
         trailing: const Icon(Icons.chevron_right),
         onTap: () {
           if (movieId != null) {
-            unawaited(
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      MovieDetailScreen(movieId: movieId, movieTitle: title),
-                ),
+            Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (context) =>
+                    MovieDetailScreen(movieId: movieId, movieTitle: title),
               ),
             );
           }

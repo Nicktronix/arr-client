@@ -18,11 +18,7 @@ abstract class Quality with _$Quality {
 
 @freezed
 abstract class Revision with _$Revision {
-  const factory Revision({
-    int? version,
-    int? real,
-    bool? isRepack,
-  }) = _Revision;
+  const factory Revision({int? version, int? real, bool? isRepack}) = _Revision;
 
   factory Revision.fromJson(Map<String, dynamic> json) =>
       _$RevisionFromJson(json);
@@ -30,10 +26,8 @@ abstract class Revision with _$Revision {
 
 @freezed
 abstract class QualityModel with _$QualityModel {
-  const factory QualityModel({
-    Quality? quality,
-    Revision? revision,
-  }) = _QualityModel;
+  const factory QualityModel({Quality? quality, Revision? revision}) =
+      _QualityModel;
 
   factory QualityModel.fromJson(Map<String, dynamic> json) =>
       _$QualityModelFromJson(json);

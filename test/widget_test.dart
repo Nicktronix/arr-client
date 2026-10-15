@@ -297,9 +297,7 @@ void main() {
     }
 
     group('state transitions', () {
-      testWidgets('shows spinner before first fetch completes', (
-        tester,
-      ) async {
+      testWidgets('shows spinner before first fetch completes', (tester) async {
         final completer = Completer<dynamic>();
         addTearDown(() {
           if (!completer.isCompleted) completer.complete(<dynamic>[]);
@@ -320,9 +318,7 @@ void main() {
       testWidgets(
         'loading → loaded: shows content after successful first fetch',
         (tester) async {
-          await tester.pumpWidget(
-            buildScreen(() async => ['item1', 'item2']),
-          );
+          await tester.pumpWidget(buildScreen(() async => ['item1', 'item2']));
           await tester.pumpAndSettle();
 
           expect(find.text('item1'), findsOneWidget);

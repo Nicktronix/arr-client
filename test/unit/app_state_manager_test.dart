@@ -205,9 +205,7 @@ void main() {
       when(
         () => mockInstances.deleteSonarrInstance('sonarr-a'),
       ).thenAnswer((_) async {});
-      when(
-        () => mockInstances.getSonarrInstancesMetadata(),
-      ).thenReturn([]);
+      when(() => mockInstances.getSonarrInstancesMetadata()).thenReturn([]);
 
       cache.set('series_list_sonarr-a', 'cached');
 

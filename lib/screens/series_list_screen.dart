@@ -256,10 +256,7 @@ class _SeriesListScreenState extends State<SeriesListScreen>
                         title: Text('Recently Added'),
                         value: 'added',
                       ),
-                      RadioListTile<String>(
-                        title: Text('Year'),
-                        value: 'year',
-                      ),
+                      RadioListTile<String>(title: Text('Year'), value: 'year'),
                     ],
                   ),
                 ),
@@ -415,15 +412,11 @@ class _SeriesListScreenState extends State<SeriesListScreen>
       elevation: 2,
       child: InkWell(
         onTap: () {
-          unawaited(
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SeriesDetailScreen(
-                  seriesId: series.id!,
-                  seriesTitle: title,
-                ),
-              ),
+          Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (context) =>
+                  SeriesDetailScreen(seriesId: series.id!, seriesTitle: title),
             ),
           );
         },

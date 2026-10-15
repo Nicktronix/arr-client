@@ -10,10 +10,8 @@ part 'manual_import.g.dart';
 
 @freezed
 abstract class ImportRejection with _$ImportRejection {
-  const factory ImportRejection({
-    String? reason,
-    String? type,
-  }) = _ImportRejection;
+  const factory ImportRejection({String? reason, String? type}) =
+      _ImportRejection;
 
   factory ImportRejection.fromJson(Map<String, dynamic> json) =>
       _$ImportRejectionFromJson(json);

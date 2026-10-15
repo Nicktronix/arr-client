@@ -58,23 +58,26 @@ class SonarrService {
 
   Future<SonarrSystemStatus> getSystemStatus() async {
     final client = await _api;
-    return client.getObject('/system/status', SonarrSystemStatus.fromJson);
+    return await client.getObject(
+      '/system/status',
+      SonarrSystemStatus.fromJson,
+    );
   }
 
   Future<List<SeriesResource>> getSeries() async {
     final client = await _api;
-    return client.getList('/series', SeriesResource.fromJson);
+    return await client.getList('/series', SeriesResource.fromJson);
   }
 
   Future<SeriesResource> getSeriesById(int id) async {
     if (id <= 0) throw ArgumentError('Invalid series ID: $id');
     final client = await _api;
-    return client.getObject('/series/$id', SeriesResource.fromJson);
+    return await client.getObject('/series/$id', SeriesResource.fromJson);
   }
 
   Future<List<SeriesResource>> searchSeries(String query) async {
     final client = await _api;
-    return client.getList(
+    return await client.getList(
       '/series/lookup?term=$query',
       SeriesResource.fromJson,
     );
@@ -91,12 +94,12 @@ class SonarrService {
       final endStr = end.toIso8601String().split('T')[0];
       endpoint += '?start=$startStr&end=$endStr';
     }
-    return client.getList(endpoint, EpisodeResource.fromJson);
+    return await client.getList(endpoint, EpisodeResource.fromJson);
   }
 
   Future<List<SonarrQueueItem>> getQueue() async {
     final client = await _api;
-    return client.getPagedList(
+    return await client.getPagedList(
       '/queue?pageSize=500&sortKey=timeleft&sortDirection=ascending',
       SonarrQueueItem.fromJson,
     );
@@ -141,7 +144,7 @@ class SonarrService {
 
   Future<List<EpisodeResource>> getEpisodesBySeriesId(int seriesId) async {
     final client = await _api;
-    return client.getList(
+    return await client.getList(
       '/episode?seriesId=$seriesId',
       EpisodeResource.fromJson,
     );
@@ -151,7 +154,7 @@ class SonarrService {
     int seriesId,
   ) async {
     final client = await _api;
-    return client.getList(
+    return await client.getList(
       '/episodeFile?seriesId=$seriesId',
       EpisodeFileResource.fromJson,
     );
@@ -186,27 +189,30 @@ class SonarrService {
 
   Future<List<QualityProfileResource>> getQualityProfiles() async {
     final client = await _api;
-    return client.getList('/qualityProfile', QualityProfileResource.fromJson);
+    return await client.getList(
+      '/qualityProfile',
+      QualityProfileResource.fromJson,
+    );
   }
 
   Future<List<RootFolderResource>> getRootFolders() async {
     final client = await _api;
-    return client.getList('/rootFolder', RootFolderResource.fromJson);
+    return await client.getList('/rootFolder', RootFolderResource.fromJson);
   }
 
   Future<List<TagResource>> getTags() async {
     final client = await _api;
-    return client.getList('/tag', TagResource.fromJson);
+    return await client.getList('/tag', TagResource.fromJson);
   }
 
   Future<TagResource> getTagById(int id) async {
     final client = await _api;
-    return client.getObject('/tag/$id', TagResource.fromJson);
+    return await client.getObject('/tag/$id', TagResource.fromJson);
   }
 
   Future<List<SonarrRelease>> searchEpisodeReleases(int episodeId) async {
     final client = await _api;
-    return client.getList(
+    return await client.getList(
       '/release?episodeId=$episodeId',
       SonarrRelease.fromJson,
       timeout: const Duration(seconds: 60),
@@ -226,7 +232,7 @@ class SonarrService {
     int pageSize = 50,
   }) async {
     final client = await _api;
-    return client.getPagedList(
+    return await client.getPagedList(
       '/history?page=$page&pageSize=$pageSize&sortKey=date&sortDirection=descending',
       SonarrHistoryRecord.fromJson,
     );
@@ -234,12 +240,12 @@ class SonarrService {
 
   Future<List<HealthResource>> getHealth() async {
     final client = await _api;
-    return client.getList('/health', HealthResource.fromJson);
+    return await client.getList('/health', HealthResource.fromJson);
   }
 
   Future<List<DiskSpaceResource>> getDiskspace() async {
     final client = await _api;
-    return client.getList('/diskspace', DiskSpaceResource.fromJson);
+    return await client.getList('/diskspace', DiskSpaceResource.fromJson);
   }
 
   Future<void> testAllIndexers() async {
@@ -252,7 +258,7 @@ class SonarrService {
     bool filterExistingFiles = false,
   }) async {
     final client = await _api;
-    return client.getList(
+    return await client.getList(
       '/manualimport?downloadId=$downloadId&filterExistingFiles=$filterExistingFiles',
       SonarrManualImport.fromJson,
     );
@@ -269,6 +275,6 @@ class SonarrService {
 
   Future<List<LanguageResource>> getLanguages() async {
     final client = await _api;
-    return client.getList('/language', LanguageResource.fromJson);
+    return await client.getList('/language', LanguageResource.fromJson);
   }
 }

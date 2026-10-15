@@ -108,7 +108,7 @@ class InstanceManager {
   }
 
   Future<List<ServiceInstance>> getSonarrInstances() async {
-    return _getInstances('sonarr');
+    return await _getInstances('sonarr');
   }
 
   List<Map<String, dynamic>> getSonarrInstancesMetadata() {
@@ -160,7 +160,7 @@ class InstanceManager {
 
   // Radarr Instances
   Future<List<ServiceInstance>> getRadarrInstances() async {
-    return _getInstances('radarr');
+    return await _getInstances('radarr');
   }
 
   List<Map<String, dynamic>> getRadarrInstancesMetadata() {

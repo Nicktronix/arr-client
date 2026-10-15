@@ -201,17 +201,15 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
       child: InkWell(
         onTap: () {
-          unawaited(
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => EpisodeDetailScreen(
-                  seriesId: widget.seriesId,
-                  episodeId: episodeId,
-                  seriesTitle: widget.seriesTitle,
-                  seasonNumber: widget.seasonNumber,
-                  episodeNumber: episodeNumber,
-                ),
+          Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (context) => EpisodeDetailScreen(
+                seriesId: widget.seriesId,
+                episodeId: episodeId,
+                seriesTitle: widget.seriesTitle,
+                seasonNumber: widget.seasonNumber,
+                episodeNumber: episodeNumber,
               ),
             ),
           );
