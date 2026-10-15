@@ -13,6 +13,7 @@ class ApiClient {
   static const int _maxRetries = 2;
 
   final http.Client _httpClient;
+  final bool _ownsHttpClient;
 
   ApiClient({
     required this.baseUrl,
@@ -21,11 +22,14 @@ class ApiClient {
     this.basicAuthPassword,
     this.apiVersion = 'v3',
     http.Client? httpClient,
-  }) : _httpClient = httpClient ?? http.Client();
+  }) : _httpClient = httpClient ?? http.Client(),
+       _ownsHttpClient = httpClient == null;
 
   /// Release resources. Called by services when the active instance changes.
+  /// An injected [http.Client] is shared app-wide, so only a client created
+  /// here is closed.
   void close() {
-    _httpClient.close();
+    if (_ownsHttpClient) _httpClient.close();
   }
 
   Map<String, String> get _headers {
