@@ -284,9 +284,7 @@ class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
                           ],
                           if (record.data?['downloadClient'] != null) ...[
                             const SizedBox(height: 4),
-                            Text(
-                              'Client: ${record.data!['downloadClient']}',
-                            ),
+                            Text('Client: ${record.data!['downloadClient']}'),
                           ],
                           if (failureMessage != null &&
                               eventType == 'downloadFailed') ...[

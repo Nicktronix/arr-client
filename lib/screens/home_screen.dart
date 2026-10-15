@@ -164,12 +164,10 @@ class _HomeScreenState extends State<HomeScreen> {
               title: const Text('Calendar'),
               onTap: () {
                 Navigator.pop(context); // Close drawer
-                unawaited(
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const CalendarScreen(),
-                    ),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (context) => const CalendarScreen(),
                   ),
                 );
               },
@@ -179,12 +177,10 @@ class _HomeScreenState extends State<HomeScreen> {
               title: const Text('System Status'),
               onTap: () {
                 Navigator.pop(context); // Close drawer
-                unawaited(
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const SystemStatusScreen(),
-                    ),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (context) => const SystemStatusScreen(),
                   ),
                 );
               },
@@ -279,12 +275,10 @@ class SonarrTab extends StatelessWidget {
           const SizedBox(height: 24),
           ElevatedButton.icon(
             onPressed: () {
-              unawaited(
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SeriesListScreen(),
-                  ),
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (context) => const SeriesListScreen(),
                 ),
               );
             },
@@ -294,12 +288,10 @@ class SonarrTab extends StatelessWidget {
           const SizedBox(height: 8),
           ElevatedButton.icon(
             onPressed: () {
-              unawaited(
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SeriesSearchScreen(),
-                  ),
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (context) => const SeriesSearchScreen(),
                 ),
               );
             },
@@ -379,12 +371,10 @@ class RadarrTab extends StatelessWidget {
           const SizedBox(height: 24),
           ElevatedButton.icon(
             onPressed: () {
-              unawaited(
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const MovieListScreen(),
-                  ),
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (context) => const MovieListScreen(),
                 ),
               );
             },
@@ -394,12 +384,10 @@ class RadarrTab extends StatelessWidget {
           const SizedBox(height: 8),
           ElevatedButton.icon(
             onPressed: () {
-              unawaited(
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const MovieSearchScreen(),
-                  ),
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (context) => const MovieSearchScreen(),
                 ),
               );
             },

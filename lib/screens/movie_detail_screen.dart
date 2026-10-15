@@ -168,14 +168,12 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   void _openInteractiveSearch() {
-    unawaited(
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ReleaseSearchScreen(
-            movieId: widget.movieId,
-            movieTitle: widget.movieTitle,
-          ),
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (context) => ReleaseSearchScreen(
+          movieId: widget.movieId,
+          movieTitle: widget.movieTitle,
         ),
       ),
     );

@@ -57,14 +57,8 @@ Future<Map<String, dynamic>> _decryptInIsolate(
 
     if (version == 1) {
       // Legacy AES-CBC (no authentication tag)
-      final algorithm = AesCbc.with256bits(
-        macAlgorithm: MacAlgorithm.empty,
-      );
-      final secretBox = SecretBox(
-        encryptedBytes,
-        nonce: iv,
-        mac: Mac.empty,
-      );
+      final algorithm = AesCbc.with256bits(macAlgorithm: MacAlgorithm.empty);
+      final secretBox = SecretBox(encryptedBytes, nonce: iv, mac: Mac.empty);
       plainBytes = await algorithm.decrypt(secretBox, secretKey: key);
     } else {
       // AES-GCM: ciphertext || 16-byte tag
@@ -85,9 +79,7 @@ Future<Map<String, dynamic>> _decryptInIsolate(
 
 Uint8List _randomBytes(int length) {
   final random = Random.secure();
-  return Uint8List.fromList(
-    List.generate(length, (_) => random.nextInt(256)),
-  );
+  return Uint8List.fromList(List.generate(length, (_) => random.nextInt(256)));
 }
 
 Future<SecretKey> _deriveKey(String password, Uint8List salt) {
@@ -248,9 +240,7 @@ class BackupService {
     });
 
     if (result['success'] != true) {
-      throw Exception(
-        (result['error'] as String?) ?? 'Invalid password',
-      );
+      throw Exception((result['error'] as String?) ?? 'Invalid password');
     }
 
     final data = result['data'] as Map<String, dynamic>;

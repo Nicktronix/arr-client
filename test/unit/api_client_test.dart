@@ -106,11 +106,7 @@ void main() {
       expect(
         () => client.get('/series/99'),
         throwsA(
-          isA<ApiException>().having(
-            (e) => e.message,
-            'message',
-            'Not found',
-          ),
+          isA<ApiException>().having((e) => e.message, 'message', 'Not found'),
         ),
       );
     });

@@ -157,7 +157,7 @@ class BiometricService {
   }) async {
     if (!await isBiometricEnabled()) return true;
 
-    return authenticate(
+    return await authenticate(
       reason: 'Authentication required to $operation',
       biometricOnly: false,
     );

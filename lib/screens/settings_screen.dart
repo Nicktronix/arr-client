@@ -858,7 +858,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
       );
 
       // Pick file
-      final result = await FilePicker.pickFiles(
+      final file = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['json'],
         dialogTitle: 'Select Backup File',
@@ -866,8 +866,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
 
       if (mounted) Navigator.pop(context); // Close file picker loading
 
-      if (result == null) return;
-      final filePath = result.files.single.path;
+      final filePath = file?.path;
       if (filePath == null) return;
 
       // Show password dialog
