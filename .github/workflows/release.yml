@@ -106,28 +106,33 @@ jobs:
           path: ./artifacts
 
       - name: Create Release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
-          body: |
-            ## Arr Client ${{ github.ref_name }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          cat > release-notes.md << EOF
+          ## Arr Client ${TAG}
 
-            ### Downloads
-            - **Android**: arr-client-${{ github.ref_name }}-android.apk
+          ### Downloads
+          - **Android**: arr-client-${TAG}-android.apk
 
-            ### Installation
+          ### Installation
 
-            **Android**:
-            1. Download the APK
-            2. Enable "Install from Unknown Sources" in Android Settings
-            3. Install the APK
+          **Android**:
+          1. Download the APK
+          2. Enable "Install from Unknown Sources" in Android Settings
+          3. Install the APK
 
-            **iOS** (Build Locally):
-            See [README.md](https://github.com/${{ github.repository }}/blob/main/README.md) for iOS build instructions.
+          **iOS** (Build Locally):
+          See [README.md](https://github.com/${REPO}/blob/main/README.md) for iOS build instructions.
 
-            ### Changelog
-            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
-          files: ./artifacts/*.apk
-          draft: false
-          prerelease: false
+          ### Changelog
+          See [CHANGELOG.md](https://github.com/${REPO}/blob/main/CHANGELOG.md) for details.
+          EOF
+
+          gh release create "$TAG" ./artifacts/*.apk \
+            --repo "$REPO" \
+            --verify-tag \
+            --title "Release $TAG" \
+            --notes-file release-notes.md

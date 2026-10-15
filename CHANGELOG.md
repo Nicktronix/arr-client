@@ -87,6 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Android: Gradle Plugin 9.1.0, Gradle 9.3.1, Kotlin 2.4.0 with built-in Kotlin; release builds use JDK 21
 - GitHub Actions: `actions/checkout` 7, `codecov/codecov-action` 7, `softprops/action-gh-release` 3, `osv-scanner-action` 2.6.0
 - Release workflow runs code generation before building (generated files are gitignored)
+- Release workflow publishes the GitHub release with the `gh` CLI instead of a third-party action
 - Branch protection on `develop`: all 3 CI jobs required before merge
 
 ## [1.0.0] - 2025-12-17
