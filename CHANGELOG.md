@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.1.0] - 2026-10-15
 
+> **Upgrading from 1.0.0:** v1.1.0 is signed with a new release key, so Android can't update the existing install in place. Before upgrading, export a backup (Settings → Export), uninstall 1.0.0, install 1.1.0, then import the backup (Settings → Import).
+
 ### Added
 - **Queue screen enhancements**
   - Warning message banners for downloads with issues (import failures, etc.)
