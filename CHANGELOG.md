@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Toolchain**: Flutter 3.47.7 pinned across CI, release workflow, and README; Android Gradle Plugin 9.1.0, Gradle 9.3.1, Kotlin 2.4.0 with built-in Kotlin; release builds use JDK 21
+- **Dependencies**: all packages updated to latest, including major bumps to `flutter_secure_storage` 11, `file_picker` 13, `freezed` 4, `injectable` 3, and `very_good_analysis` 11
+- **GitHub Actions**: `actions/checkout` 7, `codecov/codecov-action` 7, `softprops/action-gh-release` 3, `osv-scanner-action` 2.6.0
+
+### Fixed
+- Release workflow now runs code generation before building — generated files are gitignored, so tag builds would otherwise fail to compile
+
 ## [1.1.0] - 2026-04-19
 
 ### Added

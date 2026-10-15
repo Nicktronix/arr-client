@@ -3,7 +3,7 @@
 [![Flutter CI](https://github.com/Nicktronix/arr-client/actions/workflows/ci.yml/badge.svg)](https://github.com/Nicktronix/arr-client/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/Nicktronix/arr-client/branch/main/graph/badge.svg)](https://codecov.io/gh/Nicktronix/arr-client)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Flutter](https://img.shields.io/badge/Flutter-3.41.2-02569B?logo=flutter)](https://flutter.dev)
+[![Flutter](https://img.shields.io/badge/Flutter-3.47.7-02569B?logo=flutter)](https://flutter.dev)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Linux%20%7C%20Windows%20%7C%20macOS%20%7C%20Web-brightgreen)]()
 
 A mobile client for [Sonarr](https://sonarr.tv/) and [Radarr](https://radarr.video/) media servers built with Flutter. Manage your media library on the go with a native Material Design 3 interface.
@@ -27,7 +27,7 @@ A mobile client for [Sonarr](https://sonarr.tv/) and [Radarr](https://radarr.vid
 
 ### Build from Source
 
-**Prerequisites**: [Flutter SDK](https://flutter.dev/docs/get-started/install) 3.41.2 or higher
+**Prerequisites**: [Flutter SDK](https://flutter.dev/docs/get-started/install) 3.47.7 or higher
 
 1. **Clone the repository**
    ```bash
