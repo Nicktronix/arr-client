@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../services/app_state_manager.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/di/injection.dart';
+import 'package:arr_client/utils/error_formatter.dart';
 
 /// Standardized loading states for all screens
 enum LoadingState {
@@ -15,10 +17,13 @@ enum LoadingState {
 mixin CachedDataLoader<T extends StatefulWidget> on State<T> {
   LoadingState _loadingState = LoadingState.initial;
   String? _errorMessage;
-  final AppStateManager _appState = AppStateManager();
+  bool _isStaleData = false;
+  String? _staleError;
+  final AppStateManager _appState = getIt<AppStateManager>();
 
   LoadingState get loadingState => _loadingState;
   String? get errorMessage => _errorMessage;
+  bool get isStaleData => _isStaleData;
   AppStateManager get appState => _appState;
 
   /// Override to specify the cache key for this screen
@@ -53,6 +58,8 @@ mixin CachedDataLoader<T extends StatefulWidget> on State<T> {
         setState(() {
           _loadingState = LoadingState.loading;
           _errorMessage = null;
+          _isStaleData = false;
+          _staleError = null;
         });
       }
     } else {
@@ -108,20 +115,39 @@ mixin CachedDataLoader<T extends StatefulWidget> on State<T> {
         setState(() {
           _loadingState = LoadingState.loaded;
           _errorMessage = null;
+          _isStaleData = false;
+          _staleError = null;
         });
         onDataLoaded(data);
       }
     } catch (e) {
       if (mounted) {
-        // Only show error if we don't have cached data
         if (cachedData == null) {
           setState(() {
             _loadingState = LoadingState.error;
-            _errorMessage = e.toString();
+            _errorMessage = ErrorFormatter.format(e);
+          });
+        } else {
+          setState(() {
+            _isStaleData = true;
+            _staleError = ErrorFormatter.format(e);
           });
         }
       }
     }
+  }
+
+  /// Build stale data banner shown above content when background refresh fails
+  Widget buildStaleDataBanner({required VoidCallback onRetry}) {
+    return MaterialBanner(
+      backgroundColor: Colors.amber.shade100,
+      content: Text(
+        _staleError ?? 'Could not refresh — showing cached data',
+        style: const TextStyle(fontSize: 13),
+      ),
+      leading: const Icon(Icons.warning_amber_rounded, color: Colors.amber),
+      actions: [TextButton(onPressed: onRetry, child: const Text('Retry'))],
+    );
   }
 
   /// Build loading indicator
@@ -218,6 +244,14 @@ mixin CachedDataLoader<T extends StatefulWidget> on State<T> {
       case LoadingState.loaded:
         if (isEmpty) {
           return emptyStateWidget;
+        }
+        if (_isStaleData) {
+          return Column(
+            children: [
+              buildStaleDataBanner(onRetry: () => loadData(forceRefresh: true)),
+              Expanded(child: buildContent()),
+            ],
+          );
         }
         return buildContent();
 

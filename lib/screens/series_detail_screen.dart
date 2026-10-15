@@ -1,9 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/sonarr_service.dart';
-import '../services/app_state_manager.dart';
-import '../config/app_config.dart';
-import 'season_detail_screen.dart';
-import '../utils/error_formatter.dart';
+import 'package:arr_client/models/sonarr/series.dart';
+import 'package:arr_client/models/shared/media_cover.dart';
+import 'package:arr_client/models/shared/quality_profile.dart';
+import 'package:arr_client/models/shared/root_folder.dart';
+import 'package:arr_client/models/shared/tag.dart';
+import 'package:arr_client/services/sonarr_service.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/config/app_config.dart';
+import 'package:arr_client/di/injection.dart';
+import 'package:arr_client/screens/season_detail_screen.dart';
+import 'package:arr_client/utils/error_formatter.dart';
 
 class SeriesDetailScreen extends StatefulWidget {
   final int seriesId;
@@ -20,8 +28,8 @@ class SeriesDetailScreen extends StatefulWidget {
 }
 
 class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
-  final SonarrService _sonarr = SonarrService();
-  Map<String, dynamic>? _series;
+  final SonarrService _sonarr = getIt<SonarrService>();
+  SeriesResource? _series;
   bool _isLoading = true;
   String? _error;
   String? _instanceIdOnLoad;
@@ -30,18 +38,17 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
   void initState() {
     super.initState();
     _instanceIdOnLoad = AppConfig.activeSonarrInstanceId;
-    _loadSeriesDetails();
-    AppStateManager().addListener(_onInstanceChanged);
+    unawaited(_loadSeriesDetails());
+    getIt<AppStateManager>().addListener(_onInstanceChanged);
   }
 
   @override
   void dispose() {
-    AppStateManager().removeListener(_onInstanceChanged);
+    getIt<AppStateManager>().removeListener(_onInstanceChanged);
     super.dispose();
   }
 
   void _onInstanceChanged() {
-    // If instance changed, show warning and return to previous screen
     if (mounted && AppConfig.activeSonarrInstanceId != _instanceIdOnLoad) {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -132,15 +139,11 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
   }
 
   Widget _buildAppBar() {
-    // Get banner/fanart image
-    final List<dynamic>? images = _series!['images'];
     String? fanartUrl;
-    if (images != null) {
-      for (var image in images) {
-        if (image['coverType'] == 'fanart') {
-          fanartUrl = image['remoteUrl'];
-          break;
-        }
+    for (final image in _series!.images ?? <MediaCover>[]) {
+      if (image.coverType == 'fanart') {
+        fanartUrl = image.remoteUrl;
+        break;
       }
     }
 
@@ -200,25 +203,20 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
   }
 
   Widget _buildHeader() {
-    final String title = _series!['title'] ?? 'Unknown';
-    final int year = _series!['year'] ?? 0;
-    final String status = _series!['status'] ?? 'unknown';
-    final String network = _series!['network'] ?? 'Unknown';
-    final bool monitored = _series!['monitored'] ?? false;
-    final int runtime = _series!['runtime'] ?? 0;
-    final List<String> genres =
-        (_series!['genres'] as List?)?.cast<String>() ?? [];
-    final double rating = (_series!['ratings']?['value'] ?? 0.0).toDouble();
+    final title = _series!.title ?? 'Unknown';
+    final year = _series!.year ?? 0;
+    final status = _series!.status ?? 'unknown';
+    final network = _series!.network ?? 'Unknown';
+    final monitored = _series!.monitored ?? false;
+    final runtime = _series!.runtime ?? 0;
+    final genres = _series!.genres ?? [];
+    final rating = _series!.ratings?.value ?? 0.0;
 
-    // Get poster
-    final List<dynamic>? images = _series!['images'];
     String? posterUrl;
-    if (images != null) {
-      for (var image in images) {
-        if (image['coverType'] == 'poster') {
-          posterUrl = image['remoteUrl'];
-          break;
-        }
+    for (final image in _series!.images ?? <MediaCover>[]) {
+      if (image.coverType == 'poster') {
+        posterUrl = image.remoteUrl;
+        break;
       }
     }
 
@@ -227,7 +225,6 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Poster
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: posterUrl != null
@@ -253,7 +250,6 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                   ),
           ),
           const SizedBox(width: 16),
-          // Info
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -357,7 +353,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
   }
 
   Widget _buildOverview() {
-    final String? overview = _series!['overview'];
+    final overview = _series!.overview;
 
     if (overview == null || overview.isEmpty) {
       return const SizedBox.shrink();
@@ -387,18 +383,14 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
   }
 
   Widget _buildSeasons() {
-    final List<dynamic>? seasons = _series!['seasons'];
+    final seasons = _series!.seasons;
 
     if (seasons == null || seasons.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    // Filter out specials and sort by season number
-    final regularSeasons = seasons.where((s) => s['seasonNumber'] != 0).toList()
-      ..sort(
-        (a, b) =>
-            (a['seasonNumber'] as int).compareTo(b['seasonNumber'] as int),
-      );
+    final regularSeasons = seasons.where((s) => s.seasonNumber != 0).toList()
+      ..sort((a, b) => (a.seasonNumber ?? 0).compareTo(b.seasonNumber ?? 0));
 
     if (regularSeasons.isEmpty) {
       return const SizedBox.shrink();
@@ -414,28 +406,19 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          ...regularSeasons.map((season) => _buildSeasonItem(season)),
+          ...regularSeasons.map(_buildSeasonItem),
         ],
       ),
     );
   }
 
-  Widget _buildSeasonItem(Map<String, dynamic> season) {
-    final int seasonNumber = season['seasonNumber'] ?? 0;
-    final bool monitored = season['monitored'] ?? false;
-    final Map<String, dynamic>? statistics = season['statistics'];
+  Widget _buildSeasonItem(SeasonResource season) {
+    final seasonNumber = season.seasonNumber ?? 0;
+    final monitored = season.monitored ?? false;
+    final totalEpisodes = season.statistics?.totalEpisodeCount ?? 0;
+    final episodeFileCount = season.statistics?.episodeFileCount ?? 0;
 
-    int totalEpisodes = 0;
-    int episodeFileCount = 0;
-
-    if (statistics != null) {
-      totalEpisodes = statistics['totalEpisodeCount'] ?? 0;
-      episodeFileCount = statistics['episodeFileCount'] ?? 0;
-    }
-
-    final double progress = totalEpisodes > 0
-        ? episodeFileCount / totalEpisodes
-        : 0.0;
+    final progress = totalEpisodes > 0 ? episodeFileCount / totalEpisodes : 0.0;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -444,11 +427,11 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
             ? () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
+                  MaterialPageRoute<void>(
                     builder: (context) => SeasonDetailScreen(
-                      seriesId: _series!['id'],
+                      seriesId: _series!.id!,
                       seasonNumber: seasonNumber,
-                      seriesTitle: _series!['title'] ?? 'Unknown',
+                      seriesTitle: _series!.title ?? 'Unknown',
                     ),
                   ),
                 );
@@ -524,7 +507,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
   }
 
   Widget _buildTagsSection() {
-    final List<int> tagIds = (_series!['tags'] as List?)?.cast<int>() ?? [];
+    final tagIds = _series!.tags ?? [];
 
     return Row(
       children: [
@@ -537,7 +520,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
           )
         else
           Expanded(
-            child: FutureBuilder<List<dynamic>>(
+            child: FutureBuilder<List<TagResource>>(
               future: _sonarr.getTags(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
@@ -549,7 +532,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
 
                 final allTags = snapshot.data!;
                 final seriesTags = allTags
-                    .where((t) => tagIds.contains(t['id']))
+                    .where((t) => t.id != null && tagIds.contains(t.id))
                     .toList();
 
                 return Wrap(
@@ -558,7 +541,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                   children: seriesTags.map((tag) {
                     return Chip(
                       label: Text(
-                        tag['label'],
+                        tag.label ?? '',
                         style: const TextStyle(fontSize: 12),
                       ),
                       padding: const EdgeInsets.symmetric(
@@ -583,20 +566,17 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
   }
 
   Future<void> _showEditSeriesDialog() async {
-    // Load quality profiles, root folders, and tags
-    List<dynamic>? qualityProfiles;
-    List<dynamic>? rootFolders;
-    List<dynamic>? allTags;
+    List<QualityProfileResource>? qualityProfiles;
+    List<RootFolderResource>? rootFolders;
+    List<TagResource>? allTags;
 
     try {
-      final results = await Future.wait([
-        _sonarr.getQualityProfiles(),
-        _sonarr.getRootFolders(),
-        _sonarr.getTags(),
-      ]);
-      qualityProfiles = results[0];
-      rootFolders = results[1];
-      allTags = results[2];
+      final futureProfiles = _sonarr.getQualityProfiles();
+      final futureFolders = _sonarr.getRootFolders();
+      final futureTags = _sonarr.getTags();
+      qualityProfiles = await futureProfiles;
+      rootFolders = await futureFolders;
+      allTags = await futureTags;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -612,15 +592,14 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
 
     if (!mounted) return;
 
-    // Current series values
-    bool monitored = _series!['monitored'] ?? true;
-    bool useSeasonFolder = _series!['seasonFolder'] ?? true;
-    int qualityProfileId = _series!['qualityProfileId'];
-    String seriesType = _series!['seriesType'] ?? 'standard';
-    String path = _series!['path'];
-    final selectedTags = List<int>.from(_series!['tags'] ?? []);
+    var monitored = _series!.monitored ?? true;
+    var useSeasonFolder = _series!.seasonFolder ?? true;
+    var qualityProfileId = _series!.qualityProfileId ?? 0;
+    var seriesType = _series!.seriesType ?? 'standard';
+    var path = _series!.path ?? '';
+    final selectedTags = List<int>.from(_series!.tags ?? []);
 
-    await showDialog(
+    await showDialog<void>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
@@ -665,12 +644,14 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                   ),
                   items: qualityProfiles!.map((profile) {
                     return DropdownMenuItem<int>(
-                      value: profile['id'],
-                      child: Text(profile['name']),
+                      value: profile.id,
+                      child: Text(profile.name ?? ''),
                     );
                   }).toList(),
                   onChanged: (value) {
-                    setDialogState(() => qualityProfileId = value!);
+                    if (value != null) {
+                      setDialogState(() => qualityProfileId = value);
+                    }
                   },
                 ),
                 const SizedBox(height: 16),
@@ -697,7 +678,9 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                     DropdownMenuItem(value: 'anime', child: Text('Anime')),
                   ],
                   onChanged: (value) {
-                    setDialogState(() => seriesType = value!);
+                    if (value != null) {
+                      setDialogState(() => seriesType = value);
+                    }
                   },
                 ),
                 const SizedBox(height: 16),
@@ -708,15 +691,11 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   initialValue: () {
-                    // Find which root folder the current path is under
-                    for (var folder in rootFolders!) {
-                      final rootPath = folder['path'] as String;
-                      if (path.startsWith(rootPath)) {
-                        return rootPath;
-                      }
+                    for (final folder in rootFolders!) {
+                      final rootPath = folder.path ?? '';
+                      if (path.startsWith(rootPath)) return rootPath;
                     }
-                    // If no match, return first root folder
-                    return rootFolders.first['path'] as String;
+                    return rootFolders.first.path ?? '';
                   }(),
                   isExpanded: true,
                   decoration: const InputDecoration(
@@ -727,7 +706,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                     ),
                   ),
                   items: rootFolders!.map((folder) {
-                    final folderPath = folder['path'] as String;
+                    final folderPath = folder.path ?? '';
                     return DropdownMenuItem<String>(
                       value: folderPath,
                       child: Text(
@@ -739,10 +718,8 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                   }).toList(),
                   onChanged: (newRootFolder) {
                     if (newRootFolder != null) {
-                      // Update path to use new root folder
-                      final seriesTitle = _series!['title'];
                       setDialogState(
-                        () => path = '$newRootFolder/$seriesTitle',
+                        () => path = '$newRootFolder/${_series!.title ?? ''}',
                       );
                     }
                   },
@@ -758,16 +735,18 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                     spacing: 6,
                     runSpacing: 6,
                     children: allTags.map((tag) {
-                      final isSelected = selectedTags.contains(tag['id']);
+                      final isSelected =
+                          tag.id != null && selectedTags.contains(tag.id);
                       return FilterChip(
-                        label: Text(tag['label']),
+                        label: Text(tag.label ?? ''),
                         selected: isSelected,
                         onSelected: (selected) {
+                          if (tag.id == null) return;
                           setDialogState(() {
                             if (selected) {
-                              selectedTags.add(tag['id']);
+                              selectedTags.add(tag.id!);
                             } else {
-                              selectedTags.remove(tag['id']);
+                              selectedTags.remove(tag.id);
                             }
                           });
                         },
@@ -786,13 +765,15 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
             FilledButton(
               onPressed: () {
                 Navigator.pop(context);
-                _updateSeries(
-                  monitored: monitored,
-                  useSeasonFolder: useSeasonFolder,
-                  qualityProfileId: qualityProfileId,
-                  seriesType: seriesType,
-                  path: path,
-                  tags: selectedTags,
+                unawaited(
+                  _updateSeries(
+                    monitored: monitored,
+                    useSeasonFolder: useSeasonFolder,
+                    qualityProfileId: qualityProfileId,
+                    seriesType: seriesType,
+                    path: path,
+                    tags: selectedTags,
+                  ),
                 );
               },
               child: const Text('Save'),
@@ -812,7 +793,6 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
     required List<int> tags,
   }) async {
     try {
-      // Show loading
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Row(
@@ -830,18 +810,16 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
         ),
       );
 
-      // Update all fields on the series object
-      final updatedSeries = Map<String, dynamic>.from(_series!);
-      updatedSeries['monitored'] = monitored;
-      updatedSeries['seasonFolder'] = useSeasonFolder;
-      updatedSeries['qualityProfileId'] = qualityProfileId;
-      updatedSeries['seriesType'] = seriesType;
-      updatedSeries['path'] = path;
-      updatedSeries['tags'] = tags;
+      final updated = _series!.copyWith(
+        monitored: monitored,
+        seasonFolder: useSeasonFolder,
+        qualityProfileId: qualityProfileId,
+        seriesType: seriesType,
+        path: path,
+        tags: tags,
+      );
+      await _sonarr.updateSeries(updated);
 
-      await _sonarr.updateSeries(updatedSeries);
-
-      // Reload series details
       await _loadSeriesDetails();
 
       if (mounted) {

@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/sonarr_service.dart';
-import '../services/radarr_service.dart';
-import '../services/app_state_manager.dart';
-import '../utils/error_formatter.dart';
-import '../config/app_config.dart';
+import 'package:arr_client/services/sonarr_service.dart';
+import 'package:arr_client/services/radarr_service.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/utils/error_formatter.dart';
+import 'package:arr_client/di/injection.dart';
+import 'package:arr_client/config/app_config.dart';
+import 'package:arr_client/models/shared/health.dart';
 
 class SystemStatusScreen extends StatefulWidget {
   const SystemStatusScreen({super.key});
@@ -13,22 +17,22 @@ class SystemStatusScreen extends StatefulWidget {
 }
 
 class _SystemStatusScreenState extends State<SystemStatusScreen> {
-  final SonarrService _sonarr = SonarrService();
-  final RadarrService _radarr = RadarrService();
-  final AppStateManager _appState = AppStateManager();
+  final SonarrService _sonarr = getIt<SonarrService>();
+  final RadarrService _radarr = getIt<RadarrService>();
+  final AppStateManager _appState = getIt<AppStateManager>();
 
   bool _isLoadingSonarr = false;
   bool _isLoadingRadarr = false;
   String? _sonarrError;
   String? _radarrError;
 
-  List<dynamic> _sonarrHealth = [];
-  List<dynamic> _radarrHealth = [];
+  List<HealthResource> _sonarrHealth = [];
+  List<HealthResource> _radarrHealth = [];
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    unawaited(_loadData());
     _appState.addListener(_onInstanceChanged);
   }
 
@@ -39,12 +43,12 @@ class _SystemStatusScreenState extends State<SystemStatusScreen> {
   }
 
   void _onInstanceChanged() {
-    _loadData();
+    unawaited(_loadData());
   }
 
   Future<void> _loadData() async {
-    _loadSonarrStatus();
-    _loadRadarrStatus();
+    unawaited(_loadSonarrStatus());
+    unawaited(_loadRadarrStatus());
   }
 
   Future<void> _loadSonarrStatus() async {
@@ -144,16 +148,18 @@ class _SystemStatusScreenState extends State<SystemStatusScreen> {
     final navigator = Navigator.of(context);
 
     // Show loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const AlertDialog(
-        content: Row(
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 16),
-            Text('Testing indexers...'),
-          ],
+    unawaited(
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Testing indexers...'),
+            ],
+          ),
         ),
       ),
     );
@@ -188,17 +194,19 @@ class _SystemStatusScreenState extends State<SystemStatusScreen> {
 
       // Show error dialog
       if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Test Failed'),
-            content: Text(ErrorFormatter.format(e)),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
-              ),
-            ],
+        unawaited(
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Test Failed'),
+              content: Text(ErrorFormatter.format(e)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
           ),
         );
       }
@@ -348,7 +356,7 @@ class _SystemStatusScreenState extends State<SystemStatusScreen> {
     );
   }
 
-  Widget _buildHealthCard(String service, List<dynamic> healthItems) {
+  Widget _buildHealthCard(String service, List<HealthResource> healthItems) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -390,9 +398,8 @@ class _SystemStatusScreenState extends State<SystemStatusScreen> {
               )
             else
               ...healthItems.map((item) {
-                final type =
-                    (item['type'] as String?)?.toLowerCase() ?? 'unknown';
-                final message = item['message'] ?? 'No details';
+                final type = item.type?.toLowerCase() ?? 'unknown';
+                final message = item.message ?? 'No details';
 
                 Color color;
                 IconData icon;
@@ -420,7 +427,7 @@ class _SystemStatusScreenState extends State<SystemStatusScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(message, style: TextStyle(color: color)),
-                            if (item['wikiUrl'] != null)
+                            if (item.wikiUrl != null)
                               Text(
                                 'More info available',
                                 style: TextStyle(

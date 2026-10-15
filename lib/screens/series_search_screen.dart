@@ -1,8 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/sonarr_service.dart';
-import '../services/app_state_manager.dart';
-import '../config/app_config.dart';
-import '../utils/error_formatter.dart';
+import 'package:arr_client/models/shared/media_cover.dart';
+import 'package:arr_client/models/shared/quality_profile.dart';
+import 'package:arr_client/models/shared/root_folder.dart';
+import 'package:arr_client/models/shared/tag.dart';
+import 'package:arr_client/models/sonarr/series.dart';
+import 'package:arr_client/services/sonarr_service.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/config/app_config.dart';
+import 'package:arr_client/utils/error_formatter.dart';
+import 'package:arr_client/di/injection.dart';
 
 class SeriesSearchScreen extends StatefulWidget {
   const SeriesSearchScreen({super.key});
@@ -12,11 +20,11 @@ class SeriesSearchScreen extends StatefulWidget {
 }
 
 class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
-  final SonarrService _sonarr = SonarrService();
+  final SonarrService _sonarr = getIt<SonarrService>();
   final TextEditingController _searchController = TextEditingController();
 
-  List<dynamic> _searchResults = [];
-  List<dynamic> _existingSeries = [];
+  List<SeriesResource> _searchResults = [];
+  List<SeriesResource> _existingSeries = [];
   bool _isSearching = false;
   bool _hasSearched = false;
   String? _error;
@@ -26,19 +34,18 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
   void initState() {
     super.initState();
     _instanceIdOnLoad = AppConfig.activeSonarrInstanceId;
-    _loadExistingSeries();
-    AppStateManager().addListener(_onInstanceChanged);
+    unawaited(_loadExistingSeries());
+    getIt<AppStateManager>().addListener(_onInstanceChanged);
   }
 
   @override
   void dispose() {
-    AppStateManager().removeListener(_onInstanceChanged);
+    getIt<AppStateManager>().removeListener(_onInstanceChanged);
     _searchController.dispose();
     super.dispose();
   }
 
   void _onInstanceChanged() {
-    // If instance changed, return to previous screen
     if (mounted && AppConfig.activeSonarrInstanceId != _instanceIdOnLoad) {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -53,11 +60,12 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
   Future<void> _loadExistingSeries() async {
     try {
       final series = await _sonarr.getSeries();
+      if (!mounted) return;
       setState(() {
         _existingSeries = series;
       });
     } catch (e) {
-      // Non-critical error, just won't show "already added" status
+      // Non-critical — just won't show "already added" status
     }
   }
 
@@ -72,11 +80,13 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
 
     try {
       final results = await _sonarr.searchSeries(query);
+      if (!mounted) return;
       setState(() {
         _searchResults = results;
         _isSearching = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = ErrorFormatter.format(e);
         _isSearching = false;
@@ -84,11 +94,18 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
     }
   }
 
-  bool _isSeriesInLibrary(Map<String, dynamic> series) {
-    final tvdbId = series['tvdbId'];
+  bool _isSeriesInLibrary(SeriesResource series) {
+    final tvdbId = series.tvdbId;
     if (tvdbId == null) return false;
+    return _existingSeries.any((s) => s.tvdbId == tvdbId);
+  }
 
-    return _existingSeries.any((s) => s['tvdbId'] == tvdbId);
+  String? _posterUrl(List<MediaCover>? images) {
+    if (images == null) return null;
+    for (final image in images) {
+      if (image.coverType == 'poster') return image.remoteUrl;
+    }
+    return null;
   }
 
   @override
@@ -235,25 +252,14 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
     );
   }
 
-  Widget _buildSearchResultCard(Map<String, dynamic> series) {
-    final String title = series['title'] ?? 'Unknown Title';
-    final int year = series['year'] ?? 0;
-    final String? network = series['network'];
-    final String? overview = series['overview'];
-    final bool inLibrary = _isSeriesInLibrary(series);
-    final String status = series['status'] ?? 'unknown';
-
-    // Get poster image
-    final List<dynamic>? images = series['images'];
-    String? posterUrl;
-    if (images != null) {
-      for (var image in images) {
-        if (image['coverType'] == 'poster') {
-          posterUrl = image['remoteUrl'];
-          break;
-        }
-      }
-    }
+  Widget _buildSearchResultCard(SeriesResource series) {
+    final title = series.title ?? 'Unknown Title';
+    final year = series.year ?? 0;
+    final network = series.network;
+    final overview = series.overview;
+    final inLibrary = _isSeriesInLibrary(series);
+    final status = series.status ?? 'unknown';
+    final posterUrl = _posterUrl(series.images);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
@@ -267,7 +273,7 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
               ),
             );
           } else {
-            _showAddSeriesDialog(series);
+            unawaited(_showAddSeriesDialog(series));
           }
         },
         child: Padding(
@@ -275,7 +281,6 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Poster
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: posterUrl != null
@@ -301,7 +306,6 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
                       ),
               ),
               const SizedBox(width: 12),
-              // Series Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -342,14 +346,14 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
                     ],
                     if (inLibrary) ...[
                       const SizedBox(height: 8),
-                      Row(
+                      const Row(
                         children: [
                           Icon(
                             Icons.check_circle,
                             size: 16,
                             color: Colors.green,
                           ),
-                          const SizedBox(width: 4),
+                          SizedBox(width: 4),
                           Text(
                             'In Library',
                             style: TextStyle(
@@ -377,11 +381,10 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
     );
   }
 
-  Future<void> _showAddSeriesDialog(Map<String, dynamic> series) async {
-    // Get quality profiles, root folders, and tags
-    List<dynamic>? qualityProfiles;
-    List<dynamic>? rootFolders;
-    List<dynamic>? tags;
+  Future<void> _showAddSeriesDialog(SeriesResource series) async {
+    List<QualityProfileResource>? qualityProfiles;
+    List<RootFolderResource>? rootFolders;
+    List<TagResource>? tags;
 
     try {
       final results = await Future.wait([
@@ -389,9 +392,9 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
         _sonarr.getRootFolders(),
         _sonarr.getTags(),
       ]);
-      qualityProfiles = results[0];
-      rootFolders = results[1];
-      tags = results[2];
+      qualityProfiles = results[0] as List<QualityProfileResource>;
+      rootFolders = results[1] as List<RootFolderResource>;
+      tags = results[2] as List<TagResource>;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -420,17 +423,17 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
 
     if (!mounted) return;
 
-    int selectedQualityProfile = qualityProfiles.first['id'];
-    String selectedRootFolder = rootFolders.first['path'];
-    List<int> selectedTags = [];
-    String selectedSeriesType = 'standard';
-    bool searchForMissingEpisodes = false;
+    var selectedQualityProfile = qualityProfiles.first.id!;
+    var selectedRootFolder = rootFolders.first.path!;
+    final selectedTags = <int>[];
+    var selectedSeriesType = 'standard';
+    var searchForMissingEpisodes = false;
 
-    await showDialog(
+    await showDialog<void>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text('Add ${series['title']}'),
+          title: Text('Add ${series.title}'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -452,12 +455,14 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
                   ),
                   items: qualityProfiles!.map((profile) {
                     return DropdownMenuItem<int>(
-                      value: profile['id'],
-                      child: Text(profile['name']),
+                      value: profile.id,
+                      child: Text(profile.name ?? ''),
                     );
                   }).toList(),
                   onChanged: (value) {
-                    setDialogState(() => selectedQualityProfile = value!);
+                    if (value != null) {
+                      setDialogState(() => selectedQualityProfile = value);
+                    }
                   },
                 ),
                 const SizedBox(height: 16),
@@ -477,12 +482,14 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
                   ),
                   items: rootFolders!.map((folder) {
                     return DropdownMenuItem<String>(
-                      value: folder['path'],
-                      child: Text(folder['path']),
+                      value: folder.path,
+                      child: Text(folder.path ?? ''),
                     );
                   }).toList(),
                   onChanged: (value) {
-                    setDialogState(() => selectedRootFolder = value!);
+                    if (value != null) {
+                      setDialogState(() => selectedRootFolder = value);
+                    }
                   },
                 ),
                 const SizedBox(height: 16),
@@ -509,7 +516,9 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
                     DropdownMenuItem(value: 'anime', child: Text('Anime')),
                   ],
                   onChanged: (value) {
-                    setDialogState(() => selectedSeriesType = value!);
+                    if (value != null) {
+                      setDialogState(() => selectedSeriesType = value);
+                    }
                   },
                 ),
                 const SizedBox(height: 16),
@@ -523,16 +532,16 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
                     spacing: 6,
                     runSpacing: 6,
                     children: tags.map((tag) {
-                      final isSelected = selectedTags.contains(tag['id']);
+                      final isSelected = selectedTags.contains(tag.id);
                       return FilterChip(
-                        label: Text(tag['label']),
+                        label: Text(tag.label ?? ''),
                         selected: isSelected,
                         onSelected: (selected) {
                           setDialogState(() {
-                            if (selected) {
-                              selectedTags.add(tag['id']);
+                            if (selected && tag.id != null) {
+                              selectedTags.add(tag.id!);
                             } else {
-                              selectedTags.remove(tag['id']);
+                              selectedTags.remove(tag.id);
                             }
                           });
                         },
@@ -581,7 +590,7 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
   }
 
   Future<void> _addSeriesToLibrary(
-    Map<String, dynamic> series,
+    SeriesResource series,
     int qualityProfileId,
     String rootFolderPath,
     List<int> tags,
@@ -589,7 +598,6 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
     bool searchForMissingEpisodes,
   ) async {
     try {
-      // Show loading indicator
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -609,9 +617,9 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
         );
       }
 
-      final seriesData = {
-        'title': series['title'],
-        'tvdbId': series['tvdbId'],
+      final seriesData = <String, dynamic>{
+        'title': series.title,
+        'tvdbId': series.tvdbId,
         'qualityProfileId': qualityProfileId,
         'rootFolderPath': rootFolderPath,
         'monitored': true,
@@ -623,27 +631,22 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
           'searchForMissingEpisodes': searchForMissingEpisodes,
           'searchForCutoffUnmetEpisodes': false,
         },
-        // Copy over other necessary fields from search result
-        'titleSlug': series['titleSlug'],
-        'images': series['images'],
-        'seasons': series['seasons'],
+        'titleSlug': series.titleSlug,
+        'images': series.images?.map((i) => i.toJson()).toList() ?? [],
+        'seasons': series.seasons?.map((s) => s.toJson()).toList() ?? [],
       };
 
       await _sonarr.addSeries(seriesData);
-
-      // Reload existing series
       await _loadExistingSeries();
 
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${series['title']} added successfully!'),
+            content: Text('${series.title} added successfully!'),
             backgroundColor: Colors.green,
           ),
         );
-
-        // Update UI to show series is now in library
         setState(() {});
       }
     } catch (e) {

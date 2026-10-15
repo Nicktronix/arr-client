@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/radarr_service.dart';
-import '../utils/cached_data_loader.dart';
-import '../utils/error_formatter.dart';
-import 'movie_detail_screen.dart';
+import 'package:arr_client/models/radarr/movie.dart';
+import 'package:arr_client/models/shared/media_cover.dart';
+import 'package:arr_client/services/radarr_service.dart';
+import 'package:arr_client/utils/cached_data_loader.dart';
+import 'package:arr_client/utils/error_formatter.dart';
+import 'package:arr_client/di/injection.dart';
+import 'package:arr_client/screens/movie_detail_screen.dart';
 
 class MovieListScreen extends StatefulWidget {
   const MovieListScreen({super.key});
@@ -13,10 +18,10 @@ class MovieListScreen extends StatefulWidget {
 
 class _MovieListScreenState extends State<MovieListScreen>
     with CachedDataLoader {
-  final RadarrService _radarr = RadarrService();
+  final RadarrService _radarr = getIt<RadarrService>();
   final TextEditingController _searchController = TextEditingController();
 
-  List<dynamic> _movies = [];
+  List<MovieResource> _movies = [];
   bool _isSearching = false;
   String _searchQuery = '';
   String _sortBy = 'title_asc'; // title_asc, title_desc, added, year
@@ -32,7 +37,7 @@ class _MovieListScreenState extends State<MovieListScreen>
   void initState() {
     super.initState();
     appState.addListener(_onInstanceChanged);
-    loadData();
+    unawaited(loadData());
   }
 
   @override
@@ -47,7 +52,7 @@ class _MovieListScreenState extends State<MovieListScreen>
       setState(() {
         // Rebuild to update title with new instance name
       });
-      loadData(forceRefresh: true);
+      unawaited(loadData(forceRefresh: true));
     }
   }
 
@@ -56,7 +61,7 @@ class _MovieListScreenState extends State<MovieListScreen>
     try {
       return await _radarr.getMovies();
     } catch (e) {
-      throw ErrorFormatter.format(e);
+      throw Exception(ErrorFormatter.format(e));
     }
   }
 
@@ -64,7 +69,7 @@ class _MovieListScreenState extends State<MovieListScreen>
   void onDataLoaded(dynamic data) {
     if (mounted) {
       setState(() {
-        _movies = data as List<dynamic>;
+        _movies = data as List<MovieResource>;
         _applySorting();
       });
     }
@@ -74,54 +79,47 @@ class _MovieListScreenState extends State<MovieListScreen>
     switch (_sortBy) {
       case 'title_desc':
         _movies.sort((a, b) {
-          final titleA = (a['title'] ?? '').toString().toLowerCase();
-          final titleB = (b['title'] ?? '').toString().toLowerCase();
+          final titleA = (a.title ?? '').toLowerCase();
+          final titleB = (b.title ?? '').toLowerCase();
           return titleB.compareTo(titleA);
         });
-        break;
       case 'added':
         _movies.sort((a, b) {
-          final dateA = DateTime.tryParse(a['added'] ?? '') ?? DateTime(1900);
-          final dateB = DateTime.tryParse(b['added'] ?? '') ?? DateTime(1900);
+          final dateA = DateTime.tryParse(a.added ?? '') ?? DateTime(1900);
+          final dateB = DateTime.tryParse(b.added ?? '') ?? DateTime(1900);
           return dateB.compareTo(dateA); // Newest first
         });
-        break;
       case 'year':
         _movies.sort((a, b) {
-          final yearA = a['year'] ?? 0;
-          final yearB = b['year'] ?? 0;
+          final yearA = a.year ?? 0;
+          final yearB = b.year ?? 0;
           return yearB.compareTo(yearA); // Newest first
         });
-        break;
       case 'title_asc':
       default:
         _movies.sort((a, b) {
-          final titleA = (a['title'] ?? '').toString().toLowerCase();
-          final titleB = (b['title'] ?? '').toString().toLowerCase();
+          final titleA = (a.title ?? '').toLowerCase();
+          final titleB = (b.title ?? '').toLowerCase();
           return titleA.compareTo(titleB);
         });
-        break;
     }
   }
 
-  List<dynamic> get _filteredMovies {
+  List<MovieResource> get _filteredMovies {
     var filtered = _movies;
 
     // Apply missing files filter
     if (_showMissingOnly) {
-      filtered = filtered.where((movie) {
-        final hasFile = movie['hasFile'] ?? false;
-        return !hasFile; // Show only movies without files
-      }).toList();
+      filtered = filtered.where((movie) => !(movie.hasFile ?? false)).toList();
     }
 
     // Apply search filter
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
       filtered = filtered.where((movie) {
-        final title = (movie['title'] ?? '').toLowerCase();
-        final year = movie['year']?.toString() ?? '';
-        final status = (movie['status'] ?? '').toLowerCase();
+        final title = (movie.title ?? '').toLowerCase();
+        final year = movie.year?.toString() ?? '';
+        final status = (movie.status ?? '').toLowerCase();
 
         return title.contains(query) ||
             year.contains(query) ||
@@ -160,117 +158,118 @@ class _MovieListScreenState extends State<MovieListScreen>
       return;
     }
 
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Switch Radarr Instance',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            RadioGroup<String>(
-              groupValue: currentInstanceId,
-              onChanged: (value) async {
-                if (value != null && value != currentInstanceId) {
-                  Navigator.pop(context);
-                  // Show loading immediately for instant feedback
-                  setLoadingState();
-                  // Switch instance (clears cache and notifies listeners)
-                  await appState.switchRadarrInstance(value);
-                }
-              },
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: instancesMetadata
-                    .map(
-                      (instance) => RadioListTile<String>(
-                        title: Text(instance['name'] as String),
-                        subtitle: Text(instance['baseUrl'] as String),
-                        value: instance['id'] as String,
-                      ),
-                    )
-                    .toList(),
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showFilterOptions() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Padding(
+    unawaited(
+      showModalBottomSheet(
+        context: context,
+        builder: (context) => Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Sort & Filter',
+                'Switch Radarr Instance',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Sort By',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
               RadioGroup<String>(
-                groupValue: _sortBy,
-                onChanged: (value) {
-                  if (value != null) {
-                    setModalState(() => _sortBy = value);
-                    setState(() {
-                      _sortBy = value;
-                      _applySorting();
-                    });
+                groupValue: currentInstanceId,
+                onChanged: (value) async {
+                  if (value != null && value != currentInstanceId) {
+                    Navigator.pop(context);
+                    // Show loading immediately for instant feedback
+                    setLoadingState();
+                    // Switch instance (clears cache and notifies listeners)
+                    await appState.switchRadarrInstance(value);
                   }
                 },
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: [
-                    RadioListTile<String>(
-                      title: const Text('Title (A-Z)'),
-                      value: 'title_asc',
-                    ),
-                    RadioListTile<String>(
-                      title: const Text('Title (Z-A)'),
-                      value: 'title_desc',
-                    ),
-                    RadioListTile<String>(
-                      title: const Text('Recently Added'),
-                      value: 'added',
-                    ),
-                    RadioListTile<String>(
-                      title: const Text('Year'),
-                      value: 'year',
-                    ),
-                  ],
+                  children: instancesMetadata
+                      .map(
+                        (instance) => RadioListTile<String>(
+                          title: Text(instance['name'] as String),
+                          subtitle: Text(instance['baseUrl'] as String),
+                          value: instance['id'] as String,
+                        ),
+                      )
+                      .toList(),
                 ),
-              ),
-              const Divider(),
-              const Text(
-                'Filter',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-              SwitchListTile(
-                title: const Text('Show Missing Files Only'),
-                value: _showMissingOnly,
-                onChanged: (value) {
-                  setModalState(() => _showMissingOnly = value);
-                  setState(() => _showMissingOnly = value);
-                },
               ),
               const SizedBox(height: 8),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showFilterOptions() {
+    unawaited(
+      showModalBottomSheet(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setModalState) => Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Sort & Filter',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Sort By',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                RadioGroup<String>(
+                  groupValue: _sortBy,
+                  onChanged: (value) {
+                    if (value != null) {
+                      setModalState(() => _sortBy = value);
+                      setState(() {
+                        _sortBy = value;
+                        _applySorting();
+                      });
+                    }
+                  },
+                  child: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      RadioListTile<String>(
+                        title: Text('Title (A-Z)'),
+                        value: 'title_asc',
+                      ),
+                      RadioListTile<String>(
+                        title: Text('Title (Z-A)'),
+                        value: 'title_desc',
+                      ),
+                      RadioListTile<String>(
+                        title: Text('Recently Added'),
+                        value: 'added',
+                      ),
+                      RadioListTile<String>(title: Text('Year'), value: 'year'),
+                    ],
+                  ),
+                ),
+                const Divider(),
+                const Text(
+                  'Filter',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                SwitchListTile(
+                  title: const Text('Show Missing Files Only'),
+                  value: _showMissingOnly,
+                  onChanged: (value) {
+                    setModalState(() => _showMissingOnly = value);
+                    setState(() => _showMissingOnly = value);
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         ),
       ),
@@ -333,7 +332,7 @@ class _MovieListScreenState extends State<MovieListScreen>
         ],
       ),
       body: buildBody(
-        buildContent: () => _buildMovieList(),
+        buildContent: _buildMovieList,
         isEmpty: _movies.isEmpty,
         emptyStateWidget: buildEmptyState(
           icon: Icons.movie_outlined,
@@ -385,42 +384,41 @@ class _MovieListScreenState extends State<MovieListScreen>
     );
   }
 
-  Widget _buildMovieCard(Map<String, dynamic> movie) {
-    final String title = movie['title'] ?? 'Unknown Title';
-    final int year = movie['year'] ?? 0;
-    final String status = movie['status'] ?? 'unknown';
-    final bool monitored = movie['monitored'] ?? false;
-    final String? overview = movie['overview'];
-    final bool hasFile = movie['hasFile'] ?? false;
+  Widget _buildMovieCard(MovieResource movie) {
+    final title = movie.title ?? 'Unknown Title';
+    final year = movie.year ?? 0;
+    final status = movie.status ?? 'unknown';
+    final monitored = movie.monitored ?? false;
+    final overview = movie.overview;
+    final hasFile = movie.hasFile ?? false;
 
-    // Get poster image if available
-    final List<dynamic>? images = movie['images'];
     String? posterUrl;
-    if (images != null) {
-      for (var image in images) {
-        if (image['coverType'] == 'poster') {
-          posterUrl = image['remoteUrl'];
-          break;
-        }
+    for (final image in movie.images ?? <MediaCover>[]) {
+      if (image.coverType == 'poster') {
+        posterUrl = image.remoteUrl;
+        break;
       }
     }
 
-    // Get runtime
-    final int runtime = movie['runtime'] ?? 0;
-    final String runtimeStr = runtime > 0 ? '${runtime}min' : '';
+    final runtime = movie.runtime ?? 0;
+    final runtimeStr = runtime > 0 ? '${runtime}min' : '';
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       elevation: 2,
       child: InkWell(
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-                  MovieDetailScreen(movieId: movie['id'], movieTitle: title),
-            ),
-          ).then((_) => loadData(forceRefresh: true)); // Reload when returning
+          unawaited(
+            Navigator.push<void>(
+              context,
+              MaterialPageRoute<void>(
+                builder: (context) =>
+                    MovieDetailScreen(movieId: movie.id!, movieTitle: title),
+              ),
+            ).then((_) async {
+              await loadData(forceRefresh: true);
+            }),
+          ); // Reload when returning
         },
         child: Padding(
           padding: const EdgeInsets.all(12.0),

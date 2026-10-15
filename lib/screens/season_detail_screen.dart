@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/sonarr_service.dart';
-import '../services/app_state_manager.dart';
-import '../config/app_config.dart';
-import 'release_search_screen.dart';
-import '../utils/error_formatter.dart';
+import 'package:arr_client/models/sonarr/series.dart';
+import 'package:arr_client/services/sonarr_service.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/config/app_config.dart';
+import 'package:arr_client/di/injection.dart';
+import 'package:arr_client/screens/release_search_screen.dart';
+import 'package:arr_client/screens/episode_detail_screen.dart';
+import 'package:arr_client/utils/error_formatter.dart';
 
 class SeasonDetailScreen extends StatefulWidget {
   final int seriesId;
@@ -22,8 +27,8 @@ class SeasonDetailScreen extends StatefulWidget {
 }
 
 class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
-  final SonarrService _sonarr = SonarrService();
-  List<dynamic> _episodes = [];
+  final SonarrService _sonarr = getIt<SonarrService>();
+  List<EpisodeResource> _episodes = [];
   bool _isLoading = true;
   String? _error;
   String? _instanceIdOnLoad;
@@ -32,18 +37,17 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
   void initState() {
     super.initState();
     _instanceIdOnLoad = AppConfig.activeSonarrInstanceId;
-    _loadSeasonData();
-    AppStateManager().addListener(_onInstanceChanged);
+    unawaited(_loadSeasonData());
+    getIt<AppStateManager>().addListener(_onInstanceChanged);
   }
 
   @override
   void dispose() {
-    AppStateManager().removeListener(_onInstanceChanged);
+    getIt<AppStateManager>().removeListener(_onInstanceChanged);
     super.dispose();
   }
 
   void _onInstanceChanged() {
-    // If instance changed, show warning and return to previous screen
     if (mounted && AppConfig.activeSonarrInstanceId != _instanceIdOnLoad) {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -62,19 +66,14 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
     });
 
     try {
-      // Get episodes for this series
       final allEpisodes = await _sonarr.getEpisodesBySeriesId(widget.seriesId);
-
-      // Filter episodes for this season
-      final seasonEpisodes = allEpisodes
-          .where((ep) => ep['seasonNumber'] == widget.seasonNumber)
-          .toList();
-
-      // Sort by episode number
-      seasonEpisodes.sort(
-        (a, b) =>
-            (a['episodeNumber'] as int).compareTo(b['episodeNumber'] as int),
-      );
+      final seasonEpisodes =
+          allEpisodes
+              .where((ep) => ep.seasonNumber == widget.seasonNumber)
+              .toList()
+            ..sort(
+              (a, b) => (a.episodeNumber ?? 0).compareTo(b.episodeNumber ?? 0),
+            );
 
       setState(() {
         _episodes = seasonEpisodes;
@@ -177,13 +176,14 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
     );
   }
 
-  Widget _buildEpisodeCard(Map<String, dynamic> episode) {
-    final int episodeNumber = episode['episodeNumber'] ?? 0;
-    final String title = episode['title'] ?? 'TBA';
-    final String? overview = episode['overview'];
-    final String? airDateUtc = episode['airDateUtc'];
-    final bool hasFile = episode['hasFile'] ?? false;
-    final bool monitored = episode['monitored'] ?? false;
+  Widget _buildEpisodeCard(EpisodeResource episode) {
+    final episodeNumber = episode.episodeNumber ?? 0;
+    final episodeId = episode.id ?? 0;
+    final title = episode.title ?? 'TBA';
+    final overview = episode.overview;
+    final airDateUtc = episode.airDateUtc;
+    final hasFile = episode.hasFile ?? false;
+    final monitored = episode.monitored ?? false;
 
     DateTime? airDate;
     if (airDateUtc != null) {
@@ -194,159 +194,179 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
       }
     }
 
-    final bool hasAired = airDate != null && airDate.isBefore(DateTime.now());
-    final bool isUpcoming = airDate != null && airDate.isAfter(DateTime.now());
+    final hasAired = airDate != null && airDate.isBefore(DateTime.now());
+    final isUpcoming = airDate != null && airDate.isAfter(DateTime.now());
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Episode number badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: hasFile
-                        ? Colors.green
-                        : hasAired
-                        ? Colors.red
-                        : Colors.grey,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    'E$episodeNumber',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (context) => EpisodeDetailScreen(
+                seriesId: widget.seriesId,
+                episodeId: episodeId,
+                seriesTitle: widget.seriesTitle,
+                seasonNumber: widget.seasonNumber,
+                episodeNumber: episodeNumber,
+              ),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Episode number badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: hasFile
+                          ? Colors.green
+                          : hasAired
+                          ? Colors.red
+                          : Colors.grey,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'E$episodeNumber',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          if (airDate != null) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            if (airDate != null) ...[
+                              Icon(
+                                isUpcoming
+                                    ? Icons.schedule
+                                    : Icons.calendar_today,
+                                size: 14,
+                                color: Colors.grey[600],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _formatDate(airDate),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ] else ...[
+                              Text(
+                                'TBA',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                            const SizedBox(width: 12),
                             Icon(
-                              isUpcoming
-                                  ? Icons.schedule
-                                  : Icons.calendar_today,
+                              hasFile ? Icons.check_circle : Icons.download,
                               size: 14,
-                              color: Colors.grey[600],
+                              color: hasFile ? Colors.green : Colors.grey,
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              _formatDate(airDate),
+                              hasFile ? 'Downloaded' : 'Missing',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ] else ...[
-                            Text(
-                              'TBA',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey[600],
+                                color: hasFile
+                                    ? Colors.green
+                                    : Colors.grey[600],
                               ),
                             ),
                           ],
-                          const SizedBox(width: 12),
-                          Icon(
-                            hasFile ? Icons.check_circle : Icons.download,
-                            size: 14,
-                            color: hasFile ? Colors.green : Colors.grey,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            hasFile ? 'Downloaded' : 'Missing',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: hasFile ? Colors.green : Colors.grey[600],
-                            ),
-                          ),
-                        ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Icon(
+                        monitored ? Icons.visibility : Icons.visibility_off,
+                        size: 18,
+                        color: monitored ? Colors.green : Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.person, size: 20),
+                        onPressed: () => _showInteractiveSearch(episode),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        tooltip: 'Search for releases',
                       ),
                     ],
                   ),
-                ),
-                Row(
-                  children: [
-                    Icon(
-                      monitored ? Icons.visibility : Icons.visibility_off,
-                      size: 18,
-                      color: monitored ? Colors.green : Colors.grey,
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.person, size: 20),
-                      onPressed: () => _showInteractiveSearch(episode),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      tooltip: 'Search for releases',
-                    ),
-                  ],
+                ],
+              ),
+              if (overview != null && overview.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  overview,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[700],
+                    height: 1.4,
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
-            ),
-            if (overview != null && overview.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                overview,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey[700],
-                  height: 1.4,
-                ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
             ],
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Future<void> _showInteractiveSearch(Map<String, dynamic> episode) async {
-    final episodeId = episode['id'];
-    final episodeTitle = episode['title'] ?? 'Unknown';
-    final episodeNumber = episode['episodeNumber'] ?? 0;
+  Future<void> _showInteractiveSearch(EpisodeResource episode) async {
+    final episodeId = episode.id;
+    final episodeTitle = episode.title ?? 'Unknown';
+    final episodeNumber = episode.episodeNumber ?? 0;
 
-    // Show loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: Card(
-          child: Padding(
-            padding: EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Searching for releases...'),
-              ],
+    unawaited(
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: Card(
+            child: Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Searching for releases...'),
+                ],
+              ),
             ),
           ),
         ),
@@ -354,7 +374,7 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
     );
 
     try {
-      final releases = await _sonarr.searchEpisodeReleases(episodeId);
+      final releases = await _sonarr.searchEpisodeReleases(episodeId!);
 
       if (!mounted) return;
       Navigator.pop(context); // Close loading dialog
@@ -366,10 +386,9 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
         return;
       }
 
-      // Navigate to release search screen
-      final result = await Navigator.push(
+      final result = await Navigator.push<dynamic>(
         context,
-        MaterialPageRoute(
+        MaterialPageRoute<dynamic>(
           builder: (context) => ReleaseSearchScreen(
             episodeId: episodeId,
             episodeNumber: episodeNumber,
@@ -379,9 +398,8 @@ class _SeasonDetailScreenState extends State<SeasonDetailScreen> {
         ),
       );
 
-      // Reload season data if a download was initiated
       if (result == true && mounted) {
-        _loadSeasonData();
+        unawaited(_loadSeasonData());
       }
     } catch (e) {
       if (!mounted) return;

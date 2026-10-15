@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/sonarr_service.dart';
-import '../utils/cached_data_loader.dart';
-import '../utils/error_formatter.dart';
-import 'series_detail_screen.dart';
+import 'package:arr_client/models/sonarr/series.dart';
+import 'package:arr_client/models/shared/media_cover.dart';
+import 'package:arr_client/services/sonarr_service.dart';
+import 'package:arr_client/utils/cached_data_loader.dart';
+import 'package:arr_client/utils/error_formatter.dart';
+import 'package:arr_client/di/injection.dart';
+import 'package:arr_client/screens/series_detail_screen.dart';
 
 class SeriesListScreen extends StatefulWidget {
   const SeriesListScreen({super.key});
@@ -13,10 +18,10 @@ class SeriesListScreen extends StatefulWidget {
 
 class _SeriesListScreenState extends State<SeriesListScreen>
     with CachedDataLoader {
-  final SonarrService _sonarr = SonarrService();
+  final SonarrService _sonarr = getIt<SonarrService>();
   final TextEditingController _searchController = TextEditingController();
 
-  List<dynamic> _series = [];
+  List<SeriesResource> _series = [];
   bool _isSearching = false;
   String _searchQuery = '';
   String _sortBy = 'title_asc'; // title_asc, title_desc, added, year
@@ -32,7 +37,7 @@ class _SeriesListScreenState extends State<SeriesListScreen>
   void initState() {
     super.initState();
     appState.addListener(_onInstanceChanged);
-    loadData();
+    unawaited(loadData());
   }
 
   @override
@@ -47,7 +52,7 @@ class _SeriesListScreenState extends State<SeriesListScreen>
       setState(() {
         // Rebuild to update title with new instance name
       });
-      loadData(forceRefresh: true);
+      unawaited(loadData(forceRefresh: true));
     }
   }
 
@@ -56,7 +61,7 @@ class _SeriesListScreenState extends State<SeriesListScreen>
     try {
       return await _sonarr.getSeries();
     } catch (e) {
-      throw ErrorFormatter.format(e);
+      throw Exception(ErrorFormatter.format(e));
     }
   }
 
@@ -64,7 +69,7 @@ class _SeriesListScreenState extends State<SeriesListScreen>
   void onDataLoaded(dynamic data) {
     if (mounted) {
       setState(() {
-        _series = data as List<dynamic>;
+        _series = data as List<SeriesResource>;
         _applySorting();
       });
     }
@@ -74,46 +79,42 @@ class _SeriesListScreenState extends State<SeriesListScreen>
     switch (_sortBy) {
       case 'title_desc':
         _series.sort((a, b) {
-          final titleA = (a['title'] ?? '').toString().toLowerCase();
-          final titleB = (b['title'] ?? '').toString().toLowerCase();
+          final titleA = (a.title ?? '').toLowerCase();
+          final titleB = (b.title ?? '').toLowerCase();
           return titleB.compareTo(titleA);
         });
-        break;
       case 'added':
         _series.sort((a, b) {
-          final dateA = DateTime.tryParse(a['added'] ?? '') ?? DateTime(1900);
-          final dateB = DateTime.tryParse(b['added'] ?? '') ?? DateTime(1900);
+          final dateA = DateTime.tryParse(a.added ?? '') ?? DateTime(1900);
+          final dateB = DateTime.tryParse(b.added ?? '') ?? DateTime(1900);
           return dateB.compareTo(dateA); // Newest first
         });
-        break;
       case 'year':
         _series.sort((a, b) {
-          final yearA = a['year'] ?? 0;
-          final yearB = b['year'] ?? 0;
+          final yearA = a.year ?? 0;
+          final yearB = b.year ?? 0;
           return yearB.compareTo(yearA); // Newest first
         });
-        break;
       case 'title_asc':
       default:
         _series.sort((a, b) {
-          final titleA = (a['title'] ?? '').toString().toLowerCase();
-          final titleB = (b['title'] ?? '').toString().toLowerCase();
+          final titleA = (a.title ?? '').toLowerCase();
+          final titleB = (b.title ?? '').toLowerCase();
           return titleA.compareTo(titleB);
         });
-        break;
     }
   }
 
-  List<dynamic> get _filteredSeries {
+  List<SeriesResource> get _filteredSeries {
     var filtered = _series;
 
     // Apply missing files filter
     if (_showMissingOnly) {
       filtered = filtered.where((series) {
-        final stats = series['statistics'];
+        final stats = series.statistics;
         if (stats == null) return false;
-        final episodeFileCount = stats['episodeFileCount'] ?? 0;
-        final episodeCount = stats['episodeCount'] ?? 0;
+        final episodeFileCount = stats.episodeFileCount ?? 0;
+        final episodeCount = stats.episodeCount ?? 0;
         return episodeFileCount < episodeCount; // Has missing episodes
       }).toList();
     }
@@ -122,9 +123,9 @@ class _SeriesListScreenState extends State<SeriesListScreen>
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
       filtered = filtered.where((series) {
-        final title = (series['title'] ?? '').toLowerCase();
-        final network = (series['network'] ?? '').toLowerCase();
-        final year = series['year']?.toString() ?? '';
+        final title = (series.title ?? '').toLowerCase();
+        final network = (series.network ?? '').toLowerCase();
+        final year = series.year?.toString() ?? '';
 
         return title.contains(query) ||
             network.contains(query) ||
@@ -163,117 +164,118 @@ class _SeriesListScreenState extends State<SeriesListScreen>
       return;
     }
 
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Switch Sonarr Instance',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            RadioGroup<String>(
-              groupValue: currentInstanceId,
-              onChanged: (value) async {
-                if (value != null && value != currentInstanceId) {
-                  Navigator.pop(context);
-                  // Show loading immediately for instant feedback
-                  setLoadingState();
-                  // Switch instance (clears cache and notifies listeners)
-                  await appState.switchSonarrInstance(value);
-                }
-              },
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: instancesMetadata
-                    .map(
-                      (instance) => RadioListTile<String>(
-                        title: Text(instance['name'] as String),
-                        subtitle: Text(instance['baseUrl'] as String),
-                        value: instance['id'] as String,
-                      ),
-                    )
-                    .toList(),
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showFilterOptions() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Padding(
+    unawaited(
+      showModalBottomSheet(
+        context: context,
+        builder: (context) => Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Sort & Filter',
+                'Switch Sonarr Instance',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Sort By',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
               RadioGroup<String>(
-                groupValue: _sortBy,
-                onChanged: (value) {
-                  if (value != null) {
-                    setModalState(() => _sortBy = value);
-                    setState(() {
-                      _sortBy = value;
-                      _applySorting();
-                    });
+                groupValue: currentInstanceId,
+                onChanged: (value) async {
+                  if (value != null && value != currentInstanceId) {
+                    Navigator.pop(context);
+                    // Show loading immediately for instant feedback
+                    setLoadingState();
+                    // Switch instance (clears cache and notifies listeners)
+                    await appState.switchSonarrInstance(value);
                   }
                 },
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: [
-                    RadioListTile<String>(
-                      title: const Text('Title (A-Z)'),
-                      value: 'title_asc',
-                    ),
-                    RadioListTile<String>(
-                      title: const Text('Title (Z-A)'),
-                      value: 'title_desc',
-                    ),
-                    RadioListTile<String>(
-                      title: const Text('Recently Added'),
-                      value: 'added',
-                    ),
-                    RadioListTile<String>(
-                      title: const Text('Year'),
-                      value: 'year',
-                    ),
-                  ],
+                  children: instancesMetadata
+                      .map(
+                        (instance) => RadioListTile<String>(
+                          title: Text(instance['name'] as String),
+                          subtitle: Text(instance['baseUrl'] as String),
+                          value: instance['id'] as String,
+                        ),
+                      )
+                      .toList(),
                 ),
-              ),
-              const Divider(),
-              const Text(
-                'Filter',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-              SwitchListTile(
-                title: const Text('Show Missing Episodes Only'),
-                value: _showMissingOnly,
-                onChanged: (value) {
-                  setModalState(() => _showMissingOnly = value);
-                  setState(() => _showMissingOnly = value);
-                },
               ),
               const SizedBox(height: 8),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showFilterOptions() {
+    unawaited(
+      showModalBottomSheet(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setModalState) => Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Sort & Filter',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Sort By',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                RadioGroup<String>(
+                  groupValue: _sortBy,
+                  onChanged: (value) {
+                    if (value != null) {
+                      setModalState(() => _sortBy = value);
+                      setState(() {
+                        _sortBy = value;
+                        _applySorting();
+                      });
+                    }
+                  },
+                  child: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      RadioListTile<String>(
+                        title: Text('Title (A-Z)'),
+                        value: 'title_asc',
+                      ),
+                      RadioListTile<String>(
+                        title: Text('Title (Z-A)'),
+                        value: 'title_desc',
+                      ),
+                      RadioListTile<String>(
+                        title: Text('Recently Added'),
+                        value: 'added',
+                      ),
+                      RadioListTile<String>(title: Text('Year'), value: 'year'),
+                    ],
+                  ),
+                ),
+                const Divider(),
+                const Text(
+                  'Filter',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                SwitchListTile(
+                  title: const Text('Show Missing Episodes Only'),
+                  value: _showMissingOnly,
+                  onChanged: (value) {
+                    setModalState(() => _showMissingOnly = value);
+                    setState(() => _showMissingOnly = value);
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         ),
       ),
@@ -336,7 +338,7 @@ class _SeriesListScreenState extends State<SeriesListScreen>
         ],
       ),
       body: buildBody(
-        buildContent: () => _buildSeriesList(),
+        buildContent: _buildSeriesList,
         isEmpty: _series.isEmpty,
         emptyStateWidget: buildEmptyState(
           icon: Icons.tv_off,
@@ -388,24 +390,20 @@ class _SeriesListScreenState extends State<SeriesListScreen>
     );
   }
 
-  Widget _buildSeriesCard(Map<String, dynamic> series) {
-    final String title = series['title'] ?? 'Unknown Title';
-    final int year = series['year'] ?? 0;
-    final String status = series['status'] ?? 'unknown';
-    final int seasonCount = (series['seasons'] as List?)?.length ?? 0;
-    final String network = series['network'] ?? 'Unknown Network';
-    final bool monitored = series['monitored'] ?? false;
-    final String? overview = series['overview'];
+  Widget _buildSeriesCard(SeriesResource series) {
+    final title = series.title ?? 'Unknown Title';
+    final year = series.year ?? 0;
+    final status = series.status ?? 'unknown';
+    final seasonCount = series.seasons?.length ?? 0;
+    final network = series.network ?? 'Unknown Network';
+    final monitored = series.monitored ?? false;
+    final overview = series.overview;
 
-    // Get poster image if available
-    final List<dynamic>? images = series['images'];
     String? posterUrl;
-    if (images != null) {
-      for (var image in images) {
-        if (image['coverType'] == 'poster') {
-          posterUrl = image['remoteUrl'];
-          break;
-        }
+    for (final image in series.images ?? <MediaCover>[]) {
+      if (image.coverType == 'poster') {
+        posterUrl = image.remoteUrl;
+        break;
       }
     }
 
@@ -416,11 +414,9 @@ class _SeriesListScreenState extends State<SeriesListScreen>
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (context) => SeriesDetailScreen(
-                seriesId: series['id'],
-                seriesTitle: title,
-              ),
+            MaterialPageRoute<void>(
+              builder: (context) =>
+                  SeriesDetailScreen(seriesId: series.id!, seriesTitle: title),
             ),
           );
         },

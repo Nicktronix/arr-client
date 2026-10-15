@@ -1,10 +1,8 @@
-/// Centralized cache manager for API responses
-/// Handles instance-specific caching with time-based invalidation and memory management
-class CacheManager {
-  static final CacheManager _instance = CacheManager._internal();
-  factory CacheManager() => _instance;
-  CacheManager._internal();
+import 'package:flutter/foundation.dart';
+import 'package:injectable/injectable.dart';
 
+@lazySingleton
+class CacheManager {
   final Map<String, dynamic> _cache = {};
   final Map<String, DateTime> _cacheTimestamps = {};
   final Map<String, int> _accessCount = {}; // Track access frequency for LRU
@@ -46,10 +44,17 @@ class CacheManager {
   }
 
   /// Set cached data for a given key
+  /// Note: Does not cache sensitive data (use for API responses only)
   void set(String key, dynamic data) {
     // Evict old entries if cache is full
     if (_cache.length >= maxCacheEntries && !_cache.containsKey(key)) {
       _evictLeastRecentlyUsed();
+
+      // If still at limit after eviction, refuse to cache to prevent unbounded growth
+      if (_cache.length >= maxCacheEntries) {
+        debugPrint('Cache full, refusing to add new entry: $key');
+        return;
+      }
     }
 
     _cache[key] = data;
@@ -80,7 +85,7 @@ class CacheManager {
 
     // If no stale entries, remove least accessed
     String? lruKey;
-    int minAccess = double.maxFinite.toInt();
+    var minAccess = double.maxFinite.toInt();
 
     for (final entry in _accessCount.entries) {
       if (entry.value < minAccess) {
@@ -123,6 +128,14 @@ class CacheManager {
     }
   }
 
+  /// Backdate a cache entry's timestamp — test use only
+  @visibleForTesting
+  void backdateTimestamp(String key, Duration by) {
+    if (_cacheTimestamps.containsKey(key)) {
+      _cacheTimestamps[key] = _cacheTimestamps[key]!.subtract(by);
+    }
+  }
+
   /// Get cache statistics for monitoring
   Map<String, dynamic> getStats() {
     return {
@@ -130,8 +143,8 @@ class CacheManager {
       'maxEntries': maxCacheEntries,
       'memoryUsage':
           '${(_cache.length / maxCacheEntries * 100).toStringAsFixed(1)}%',
-      'validEntries': _cache.keys.where((k) => isValid(k)).length,
-      'staleEntries': _cache.keys.where((k) => isStale(k)).length,
+      'validEntries': _cache.keys.where(isValid).length,
+      'staleEntries': _cache.keys.where(isStale).length,
     };
   }
 }

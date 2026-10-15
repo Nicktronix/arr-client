@@ -1,9 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/sonarr_service.dart';
-import '../services/radarr_service.dart';
-import '../services/app_state_manager.dart';
-import '../config/app_config.dart';
-import '../utils/error_formatter.dart';
+import 'package:arr_client/models/shared/arr_release.dart';
+import 'package:arr_client/models/sonarr/release.dart';
+import 'package:arr_client/models/radarr/release.dart';
+import 'package:arr_client/services/sonarr_service.dart';
+import 'package:arr_client/services/radarr_service.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/config/app_config.dart';
+import 'package:arr_client/utils/error_formatter.dart';
+import 'package:arr_client/di/injection.dart';
 
 class ReleaseSearchScreen extends StatefulWidget {
   // Episode-specific (Sonarr)
@@ -15,8 +21,8 @@ class ReleaseSearchScreen extends StatefulWidget {
   final int? movieId;
   final String? movieTitle;
 
-  // Common
-  final List<dynamic>? releases;
+  // Pre-loaded releases (optional — screen fetches its own if null)
+  final List<ArrRelease>? releases;
 
   const ReleaseSearchScreen({
     super.key,
@@ -33,10 +39,10 @@ class ReleaseSearchScreen extends StatefulWidget {
 }
 
 class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
-  final SonarrService _sonarr = SonarrService();
-  final RadarrService _radarr = RadarrService();
+  final SonarrService _sonarr = getIt<SonarrService>();
+  final RadarrService _radarr = getIt<RadarrService>();
 
-  List<dynamic>? _releases;
+  List<ArrRelease>? _releases;
   bool _isLoading = false;
   String? _error;
   String? _instanceIdOnLoad;
@@ -57,19 +63,18 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     if (widget.releases != null) {
       _releases = widget.releases;
     } else {
-      _loadReleases();
+      unawaited(_loadReleases());
     }
-    AppStateManager().addListener(_onInstanceChanged);
+    getIt<AppStateManager>().addListener(_onInstanceChanged);
   }
 
   @override
   void dispose() {
-    AppStateManager().removeListener(_onInstanceChanged);
+    getIt<AppStateManager>().removeListener(_onInstanceChanged);
     super.dispose();
   }
 
   void _onInstanceChanged() {
-    // If instance changed, return to previous screen
     final currentInstanceId = _isMovie
         ? AppConfig.activeRadarrInstanceId
         : AppConfig.activeSonarrInstanceId;
@@ -91,19 +96,20 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     });
 
     try {
-      List<dynamic> releases;
+      final List<ArrRelease> releases;
       if (_isMovie) {
         releases = await _radarr.searchMovieReleases(widget.movieId!);
       } else {
-        // This shouldn't happen as episodes always pass releases
-        releases = [];
+        releases = await _sonarr.searchEpisodeReleases(widget.episodeId!);
       }
 
+      if (!mounted) return;
       setState(() {
         _releases = releases;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = ErrorFormatter.format(e);
         _isLoading = false;
@@ -111,53 +117,32 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     }
   }
 
-  List<dynamic> get _filteredAndSortedReleases {
+  List<ArrRelease> get _filteredAndSortedReleases {
     if (_releases == null) return [];
-    var releases = List<dynamic>.from(_releases!);
+    var releases = List<ArrRelease>.from(_releases!);
 
-    // Apply filters
     if (_filterMode == 'no_issues') {
-      releases = releases.where((r) {
-        final rejections = r['rejections'] as List?;
-        return rejections == null || rejections.isEmpty;
-      }).toList();
+      releases = releases
+          .where((r) => r.rejections == null || r.rejections!.isEmpty)
+          .toList();
     }
 
-    // Apply season pack filter (only for episodes, not movies)
     if (_showSeasonPacksOnly && !_isMovie) {
-      releases = releases.where((r) {
-        final fullSeason = r['fullSeason'] ?? false;
-        return fullSeason;
-      }).toList();
+      releases = releases
+          .where((r) => (r as SonarrRelease).fullSeason == true)
+          .toList();
     }
 
-    // Apply sorting
     releases.sort((a, b) {
-      int comparison = 0;
-
-      switch (_sortBy) {
-        case 'seeders':
-          final aSeeders = a['seeders'] ?? 0;
-          final bSeeders = b['seeders'] ?? 0;
-          comparison = aSeeders.compareTo(bSeeders);
-          break;
-        case 'quality':
-          final aWeight = a['qualityWeight'] ?? 0;
-          final bWeight = b['qualityWeight'] ?? 0;
-          comparison = aWeight.compareTo(bWeight);
-          break;
-        case 'size':
-          final aSize = a['size'] ?? 0;
-          final bSize = b['size'] ?? 0;
-          comparison = aSize.compareTo(bSize);
-          break;
-        case 'cf_score':
-          final aScore = a['customFormatScore'] ?? 0;
-          final bScore = b['customFormatScore'] ?? 0;
-          comparison = aScore.compareTo(bScore);
-          break;
-      }
-
+      final comparison = switch (_sortBy) {
+        'seeders' => (a.seeders ?? 0).compareTo(b.seeders ?? 0),
+        'quality' => (a.qualityWeight ?? 0).compareTo(b.qualityWeight ?? 0),
+        'size' => (a.size ?? 0).compareTo(b.size ?? 0),
+        'cf_score' => (a.customFormatScore ?? 0).compareTo(
+          b.customFormatScore ?? 0,
+        ),
+        _ => 0,
+      };
       return _sortDescending ? -comparison : comparison;
     });
 
@@ -194,7 +179,7 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
             children: [
               const Icon(Icons.error_outline, size: 64, color: Colors.red),
               const SizedBox(height: 16),
-              Text('Error loading releases'),
+              const Text('Error loading releases'),
               const SizedBox(height: 8),
               Text(_error!, textAlign: TextAlign.center),
               const SizedBox(height: 24),
@@ -283,7 +268,6 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
               if (selected) setState(() => _filterMode = 'no_issues');
             },
           ),
-          // Season packs filter only for episodes
           if (!_isMovie)
             FilterChip(
               label: const Text('Season Packs Only'),
@@ -358,18 +342,20 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     );
   }
 
-  Widget _buildReleaseCard(Map<String, dynamic> release) {
-    final String title = release['title'] ?? 'Unknown';
-    final int seeders = release['seeders'] ?? 0;
-    final int leechers = release['leechers'] ?? 0;
-    final String quality = release['quality']?['quality']?['name'] ?? 'Unknown';
-    final int size = release['size'] ?? 0;
-    final String sizeStr = _formatBytes(size);
-    final String indexer = release['indexer'] ?? 'Unknown';
-    final int cfScore = release['customFormatScore'] ?? 0;
-    final List<dynamic>? rejections = release['rejections'];
-    final bool isRejected = rejections != null && rejections.isNotEmpty;
+  Widget _buildReleaseCard(ArrRelease release) {
+    final title = release.title ?? 'Unknown';
+    final seeders = release.seeders ?? 0;
+    final leechers = release.leechers ?? 0;
+    final quality = release.quality?.quality?.name ?? 'Unknown';
+    final size = release.size ?? 0;
+    final sizeStr = _formatBytes(size);
+    final indexer = release.indexer ?? 'Unknown';
+    final cfScore = release.customFormatScore ?? 0;
+    final rejections = release.rejections;
+    final isRejected = rejections != null && rejections.isNotEmpty;
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final hasUnknownMatch = _hasUnknownMatch(release);
+    final sonarrRelease = _isMovie ? null : release as SonarrRelease;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
@@ -385,34 +371,56 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (hasUnknownMatch) ...[
+                    const SizedBox(width: 8),
+                    Tooltip(
+                      message: 'May require manual import',
+                      child: Icon(
+                        Icons.help_outline,
+                        size: 18,
+                        color: Colors.orange[700],
+                      ),
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 12,
                 runSpacing: 4,
                 children: [
-                  // Show season/episode info for series releases
-                  if (!_isMovie) ...[
-                    if (release['mappedEpisodeInfo'] != null &&
-                        (release['mappedEpisodeInfo'] as List).isNotEmpty) ...[
-                      for (var epInfo in release['mappedEpisodeInfo'])
+                  if (hasUnknownMatch)
+                    _buildInfoChip(
+                      Icons.warning_amber,
+                      'Unknown Match',
+                      Colors.orange,
+                    ),
+                  if (!_isMovie && sonarrRelease != null) ...[
+                    if (sonarrRelease.mappedEpisodeInfo != null &&
+                        sonarrRelease.mappedEpisodeInfo!.isNotEmpty)
+                      for (final epInfo in sonarrRelease.mappedEpisodeInfo!)
                         _buildInfoChip(
                           Icons.live_tv,
-                          'S${epInfo['seasonNumber']}E${epInfo['episodeNumber']}',
+                          'S${epInfo.seasonNumber}E${epInfo.episodeNumber}',
                           Colors.teal,
-                        ),
-                    ] else if (release['fullSeason'] == true)
+                        )
+                    else if (sonarrRelease.fullSeason == true)
                       _buildInfoChip(
                         Icons.tv,
-                        'Season ${release['mappedSeasonNumber'] ?? release['seasonNumber'] ?? '?'}',
+                        'Season ${sonarrRelease.mappedSeasonNumber ?? sonarrRelease.seasonNumber ?? '?'}',
                         Colors.teal,
                       ),
                   ],
@@ -433,10 +441,7 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
                 Wrap(
                   spacing: 4,
                   runSpacing: 4,
-                  children: rejections.map((rejection) {
-                    final String reason = rejection is Map
-                        ? (rejection['reason'] ?? 'Rejected')
-                        : rejection.toString();
+                  children: rejections.map((reason) {
                     return Chip(
                       label: Text(
                         reason,
@@ -494,23 +499,46 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 
-  Future<void> _showReleaseDetails(Map<String, dynamic> release) async {
-    final String title = release['title'] ?? 'Unknown';
-    final String quality = release['quality']?['quality']?['name'] ?? 'Unknown';
-    final int size = release['size'] ?? 0;
-    final int seeders = release['seeders'] ?? 0;
-    final int leechers = release['leechers'] ?? 0;
-    final String indexer = release['indexer'] ?? 'Unknown';
-    final int cfScore = release['customFormatScore'] ?? 0;
-    final int age = release['age'] ?? 0;
-    final List<dynamic>? rejections = release['rejections'];
-    final bool isRejected = rejections != null && rejections.isNotEmpty;
-    final String? releaseGroup = release['releaseGroup'];
-    final String? protocol = release['protocol'];
-    final String? edition = release['edition'];
-    final String? publishDate = release['publishDate'];
-    final List<dynamic>? languages = release['languages'];
-    final List<dynamic>? customFormats = release['customFormats'];
+  bool _hasUnknownMatch(ArrRelease release) {
+    if (_isMovie) {
+      final r = release as RadarrRelease;
+      return r.mappedMovieId == null || r.mappedMovieId == 0;
+    } else {
+      final r = release as SonarrRelease;
+      return (r.mappedEpisodeInfo?.isEmpty ?? true) && r.fullSeason != true;
+    }
+  }
+
+  Future<void> _showReleaseDetails(ArrRelease release) async {
+    final title = release.title ?? 'Unknown';
+    final quality = release.quality?.quality?.name ?? 'Unknown';
+    final size = release.size ?? 0;
+    final seeders = release.seeders ?? 0;
+    final leechers = release.leechers ?? 0;
+    final indexer = release.indexer ?? 'Unknown';
+    final cfScore = release.customFormatScore ?? 0;
+    final age = release.age ?? 0;
+    final rejections = release.rejections;
+    final isRejected = rejections != null && rejections.isNotEmpty;
+    final releaseGroup = release.releaseGroup;
+    final protocol = release.protocol;
+    final publishDate = release.publishDate;
+    final languages = release.languages;
+    final customFormats = release.customFormats;
+    final sonarrRelease = _isMovie ? null : release as SonarrRelease;
+    final radarrRelease = _isMovie ? release as RadarrRelease : null;
+
+    final hasUnknownSeries = !_isMovie && _hasUnknownMatch(release);
+    final hasUnknownMovie = _isMovie && _hasUnknownMatch(release);
+    final hasMatchingIssues =
+        hasUnknownSeries ||
+        hasUnknownMovie ||
+        (rejections?.any((reason) {
+              return reason.toLowerCase().contains('unknown') ||
+                  reason.toLowerCase().contains('series') ||
+                  reason.toLowerCase().contains('movie');
+            }) ??
+            false);
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -523,7 +551,52 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
             children: [
               Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 16),
-              // Common fields (both series and movies)
+              if (hasMatchingIssues) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.1),
+                    border: Border.all(color: Colors.orange),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.warning_amber,
+                        color: Colors.orange[800],
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              hasUnknownSeries
+                                  ? 'Unknown Series Match'
+                                  : hasUnknownMovie
+                                  ? 'Unknown Movie Match'
+                                  : 'Matching Issues Detected',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange[800],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'This release may require manual import. After downloading, '
+                              'check the Queue screen and use Manual Import if needed.',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               _buildDetailRow('Quality', quality),
               if (releaseGroup != null && releaseGroup.isNotEmpty)
                 _buildDetailRow('Release Group', releaseGroup),
@@ -533,7 +606,7 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
               if (languages != null && languages.isNotEmpty)
                 _buildDetailRow(
                   'Languages',
-                  languages.map((l) => l['name'] ?? 'Unknown').join(', '),
+                  languages.map((l) => l.name ?? 'Unknown').join(', '),
                 ),
               _buildDetailRow('Indexer', indexer),
               _buildDetailRow('Seeders', '$seeders'),
@@ -541,7 +614,6 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
               _buildDetailRow('Age', '$age days'),
               if (publishDate != null)
                 _buildDetailRow('Published', _formatPublishDate(publishDate)),
-              // Custom formats section (common)
               if (customFormats != null && customFormats.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 const Text(
@@ -553,10 +625,10 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
                   spacing: 6,
                   runSpacing: 4,
                   children: [
-                    for (var format in customFormats)
+                    for (final format in customFormats)
                       Chip(
                         label: Text(
-                          format['name'] ?? 'Unknown',
+                          format.name ?? 'Unknown',
                           style: const TextStyle(fontSize: 11),
                         ),
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -570,26 +642,31 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
               ] else
                 _buildDetailRow('Custom Format Score', '$cfScore'),
               // Type-specific fields
-              if (!_isMovie && release['mappedEpisodeInfo'] != null) ...[
-                const SizedBox(height: 12),
-                const Text(
-                  'Episodes:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                for (var epInfo in release['mappedEpisodeInfo'])
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(
-                      '• S${epInfo['seasonNumber']}E${epInfo['episodeNumber']}: ${epInfo['title'] ?? 'Unknown'}',
-                      style: TextStyle(color: Colors.grey[700]),
-                    ),
+              if (!_isMovie && sonarrRelease != null) ...[
+                if (sonarrRelease.mappedEpisodeInfo != null) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Episodes:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
+                  const SizedBox(height: 8),
+                  for (final epInfo in sonarrRelease.mappedEpisodeInfo!)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        '• S${epInfo.seasonNumber}E${epInfo.episodeNumber}: ${epInfo.title ?? 'Unknown'}',
+                        style: TextStyle(color: Colors.grey[700]),
+                      ),
+                    ),
+                ],
+                if (sonarrRelease.fullSeason == true)
+                  _buildDetailRow('Type', 'Full Season Pack'),
               ],
-              if (!_isMovie && release['fullSeason'] == true)
-                _buildDetailRow('Type', 'Full Season Pack'),
-              if (_isMovie && edition != null && edition.isNotEmpty)
-                _buildDetailRow('Edition', edition),
+              if (_isMovie && radarrRelease != null) ...[
+                if (radarrRelease.edition != null &&
+                    radarrRelease.edition!.isNotEmpty)
+                  _buildDetailRow('Edition', radarrRelease.edition!),
+              ],
               if (isRejected) ...[
                 const SizedBox(height: 12),
                 const Text(
@@ -600,11 +677,11 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                for (var rejection in rejections)
+                for (final reason in rejections)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
-                      '• ${rejection is Map ? (rejection['reason'] ?? 'Rejected') : rejection.toString()}',
+                      '• $reason',
                       style: const TextStyle(color: Colors.red, fontSize: 13),
                     ),
                   ),
@@ -626,7 +703,7 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     );
 
     if (confirmed == true && mounted) {
-      _downloadRelease(release);
+      await _downloadRelease(release);
     }
   }
 
@@ -671,7 +748,7 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
     );
   }
 
-  Future<void> _downloadRelease(Map<String, dynamic> release) async {
+  Future<void> _downloadRelease(ArrRelease release) async {
     try {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -691,19 +768,17 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
       );
 
       if (_isMovie) {
-        final downloadData = {
-          'guid': release['guid'],
-          'indexerId': release['indexerId'],
+        await _radarr.downloadRelease({
+          'guid': release.guid,
+          'indexerId': release.indexerId,
           'movieId': widget.movieId,
-        };
-        await _radarr.downloadRelease(downloadData);
+        });
       } else {
-        final downloadData = {
-          'guid': release['guid'],
-          'indexerId': release['indexerId'],
+        await _sonarr.downloadRelease({
+          'guid': release.guid,
+          'indexerId': release.indexerId,
           'episodeId': widget.episodeId,
-        };
-        await _sonarr.downloadRelease(downloadData);
+        });
       }
 
       if (mounted) {
@@ -714,8 +789,6 @@ class _ReleaseSearchScreenState extends State<ReleaseSearchScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        // Go back
-        Navigator.pop(context, true); // Return true to indicate refresh needed
       }
     } catch (e) {
       if (mounted) {

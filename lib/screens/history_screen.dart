@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../services/sonarr_service.dart';
-import '../services/radarr_service.dart';
-import '../services/app_state_manager.dart';
-import '../utils/cached_data_loader.dart';
-import '../utils/error_formatter.dart';
+import 'package:arr_client/models/shared/arr_history_record.dart';
+import 'package:arr_client/services/sonarr_service.dart';
+import 'package:arr_client/services/radarr_service.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/utils/cached_data_loader.dart';
+import 'package:arr_client/utils/error_formatter.dart';
+import 'package:arr_client/di/injection.dart';
 
 class HistoryScreen extends StatefulWidget {
   final VoidCallback? onSettingsPressed;
@@ -16,11 +20,11 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
-  final SonarrService _sonarr = SonarrService();
-  final RadarrService _radarr = RadarrService();
-  final AppStateManager _appState = AppStateManager();
+  final SonarrService _sonarr = getIt<SonarrService>();
+  final RadarrService _radarr = getIt<RadarrService>();
+  final AppStateManager _appState = getIt<AppStateManager>();
 
-  List<dynamic> _historyRecords = [];
+  List<ArrHistoryRecord> _historyRecords = [];
   String _selectedService = 'sonarr'; // 'sonarr' or 'radarr'
 
   @override
@@ -33,7 +37,7 @@ class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
   void initState() {
     super.initState();
     appState.addListener(_onInstanceChanged);
-    loadData();
+    unawaited(loadData());
   }
 
   @override
@@ -44,10 +48,8 @@ class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
 
   void _onInstanceChanged() {
     if (mounted) {
-      setState(() {
-        // Rebuild to update title with new instance name
-      });
-      loadData(forceRefresh: true);
+      setState(() {});
+      unawaited(loadData(forceRefresh: true));
     }
   }
 
@@ -56,21 +58,15 @@ class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
     try {
       if (_selectedService == 'sonarr') {
         final instanceId = _appState.getActiveSonarrId();
-        if (instanceId == null) {
-          throw Exception('No active Sonarr instance');
-        }
-        final response = await _sonarr.getHistory(page: 1, pageSize: 50);
-        return response['records'] ?? [];
+        if (instanceId == null) throw Exception('No active Sonarr instance');
+        return await _sonarr.getHistory(page: 1, pageSize: 50);
       } else {
         final instanceId = _appState.getActiveRadarrId();
-        if (instanceId == null) {
-          throw Exception('No active Radarr instance');
-        }
-        final response = await _radarr.getHistory(page: 1, pageSize: 50);
-        return response['records'] ?? [];
+        if (instanceId == null) throw Exception('No active Radarr instance');
+        return await _radarr.getHistory(page: 1, pageSize: 50);
       }
     } catch (e) {
-      throw ErrorFormatter.format(e);
+      throw Exception(ErrorFormatter.format(e));
     }
   }
 
@@ -78,7 +74,7 @@ class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
   void onDataLoaded(dynamic data) {
     if (mounted) {
       setState(() {
-        _historyRecords = data as List<dynamic>;
+        _historyRecords = (data as List).cast<ArrHistoryRecord>();
       });
     }
   }
@@ -89,7 +85,7 @@ class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
         _selectedService = service;
         _historyRecords = [];
       });
-      loadData(forceRefresh: true);
+      unawaited(loadData(forceRefresh: true));
     }
   }
 
@@ -100,7 +96,6 @@ class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
       case 'downloadFailed':
         return 'Download Failed';
       case 'downloadFolderImported':
-        return 'Imported';
       case 'downloadImported':
         return 'Imported';
       case 'episodeFileDeleted':
@@ -174,11 +169,9 @@ class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
     }
   }
 
-  String _getItemTitle(Map<String, dynamic> record) {
-    final sourceTitle = record['sourceTitle'] as String? ?? 'Unknown';
+  String _getItemTitle(ArrHistoryRecord record) {
+    final sourceTitle = record.sourceTitle ?? 'Unknown';
 
-    // Parse series/episode info from sourceTitle for better formatting
-    // Example: "Series.Name.S01E02.Title.1080p.WEB-DL"
     if (_selectedService == 'sonarr') {
       final match = RegExp(
         r'(.*?)[\. ]S(\d{1,2})E(\d{1,2})',
@@ -192,7 +185,6 @@ class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
       }
     }
 
-    // Fall back to source title (remove common suffixes)
     return sourceTitle
         .replaceAll(
           RegExp(r'\.(1080p|720p|2160p|480p).*', caseSensitive: false),
@@ -202,16 +194,12 @@ class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
         .trim();
   }
 
-  String _getItemSubtitle(Map<String, dynamic> record) {
-    final quality = record['quality'] as Map<String, dynamic>?;
-    final qualityName = quality?['quality']?['name'] ?? 'Unknown';
-
-    // Add custom format score if available
-    final cfScore = record['customFormatScore'];
+  String _getItemSubtitle(ArrHistoryRecord record) {
+    final qualityName = record.quality?.quality?.name ?? 'Unknown';
+    final cfScore = record.customFormatScore;
     if (cfScore != null && cfScore != 0) {
       return '$qualityName • CF Score: $cfScore';
     }
-
     return qualityName;
   }
 
@@ -221,9 +209,9 @@ class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
       child: ListView.builder(
         itemCount: _historyRecords.length,
         itemBuilder: (context, index) {
-          final record = _historyRecords[index] as Map<String, dynamic>;
-          final eventType = record['eventType'] as String? ?? 'unknown';
-          final sourceTitle = record['sourceTitle'] ?? 'Unknown Source';
+          final record = _historyRecords[index];
+          final eventType = record.eventType ?? 'unknown';
+          final sourceTitle = record.sourceTitle ?? 'Unknown Source';
 
           return ListTile(
             leading: CircleAvatar(
@@ -259,7 +247,7 @@ class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
                       ),
                     ),
                     Text(
-                      ' • ${_formatDate(record['date'] as String?)}',
+                      ' • ${_formatDate(record.date)}',
                       style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                     ),
                   ],
@@ -268,68 +256,68 @@ class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
             ),
             isThreeLine: true,
             onTap: () {
-              // Show detailed info dialog
-              final data = record['data'] as Map<String, dynamic>?;
-              final failureMessage = data?['message'] as String?;
+              final failureMessage = record.data?['message'] as String?;
 
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: Text(_formatEventType(eventType)),
-                  content: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _getItemTitle(record),
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        Text('Source: $sourceTitle'),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Quality: ${record['quality']?['quality']?['name'] ?? 'Unknown'}',
-                        ),
-                        if (record['customFormatScore'] != null) ...[
-                          const SizedBox(height: 4),
-                          Text('CF Score: ${record['customFormatScore']}'),
-                        ],
-                        if (data?['downloadClient'] != null) ...[
-                          const SizedBox(height: 4),
-                          Text('Client: ${data!['downloadClient']}'),
-                        ],
-                        if (failureMessage != null &&
-                            eventType == 'downloadFailed') ...[
+              unawaited(
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: Text(_formatEventType(eventType)),
+                    content: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _getItemTitle(record),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
                           const SizedBox(height: 8),
-                          const Divider(),
+                          Text('Source: $sourceTitle'),
                           const SizedBox(height: 4),
                           Text(
-                            'Failure Reason:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.red,
-                            ),
+                            'Quality: ${record.quality?.quality?.name ?? 'Unknown'}',
                           ),
+                          if (record.customFormatScore != null) ...[
+                            const SizedBox(height: 4),
+                            Text('CF Score: ${record.customFormatScore}'),
+                          ],
+                          if (record.data?['downloadClient'] != null) ...[
+                            const SizedBox(height: 4),
+                            Text('Client: ${record.data!['downloadClient']}'),
+                          ],
+                          if (failureMessage != null &&
+                              eventType == 'downloadFailed') ...[
+                            const SizedBox(height: 8),
+                            const Divider(),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Failure Reason:',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              failureMessage,
+                              style: TextStyle(color: Colors.red[700]),
+                            ),
+                          ],
                           const SizedBox(height: 4),
                           Text(
-                            failureMessage,
-                            style: TextStyle(color: Colors.red[700]),
+                            'Date: ${DateFormat('MMM d, y h:mm a').format(DateTime.parse(record.date!))}',
                           ),
                         ],
-                        const SizedBox(height: 4),
-                        Text(
-                          'Date: ${DateFormat('MMM d, y h:mm a').format(DateTime.parse(record['date']))}',
-                        ),
-                      ],
+                      ),
                     ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Close'),
+                      ),
+                    ],
                   ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Close'),
-                    ),
-                  ],
                 ),
               );
             },
@@ -347,7 +335,6 @@ class _HistoryScreenState extends State<HistoryScreen> with CachedDataLoader {
     final hasRadarr = _appState.getActiveRadarrId() != null;
     final hasAnyInstance = hasSonarr || hasRadarr;
 
-    // Auto-switch to available service if current one is unavailable
     if (_selectedService == 'sonarr' && !hasSonarr && hasRadarr) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _switchService('radarr');

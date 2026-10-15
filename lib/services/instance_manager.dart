@@ -1,36 +1,20 @@
 import 'dart:convert';
+import 'package:injectable/injectable.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../models/service_instance.dart';
+import 'package:arr_client/models/service_instance.dart';
 
+@lazySingleton
 class InstanceManager {
-  // Keys for non-sensitive data (instance list structure without credentials)
   static const String _sonarrInstancesKey = 'sonarr_instances';
   static const String _radarrInstancesKey = 'radarr_instances';
   static const String _activeSonarrKey = 'active_sonarr_id';
   static const String _activeRadarrKey = 'active_radarr_id';
 
-  // Singleton
-  static final InstanceManager _instance = InstanceManager._internal();
-  factory InstanceManager() => _instance;
-  InstanceManager._internal();
+  final SharedPreferences _prefs;
+  final FlutterSecureStorage _secureStorage;
 
-  SharedPreferences? _prefs;
-  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
-    aOptions: AndroidOptions(),
-    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
-  );
-
-  Future<void> init() async {
-    _prefs = await SharedPreferences.getInstance();
-  }
-
-  SharedPreferences get _preferences {
-    if (_prefs == null) {
-      throw Exception('InstanceManager not initialized. Call init() first.');
-    }
-    return _prefs!;
-  }
+  InstanceManager(this._prefs, this._secureStorage);
 
   /// Save sensitive instance credentials to secure storage
   Future<void> _saveInstanceCredentials(
@@ -89,27 +73,46 @@ class InstanceManager {
   }
 
   // Sonarr Instances
-  Future<List<ServiceInstance>> getSonarrInstances() async {
-    final jsonString = _preferences.getString(_sonarrInstancesKey);
+  /// Generic method to get instances with credentials
+  Future<List<ServiceInstance>> _getInstances(String serviceType) async {
+    final key = serviceType == 'sonarr'
+        ? _sonarrInstancesKey
+        : _radarrInstancesKey;
+    final jsonString = _prefs.getString(key);
     if (jsonString == null) return [];
 
-    final List<dynamic> jsonList = jsonDecode(jsonString);
-    final List<ServiceInstance> instances = [];
+    final jsonList = jsonDecode(jsonString) as List<dynamic>;
+    final instances = <ServiceInstance>[];
 
     for (var json in jsonList) {
-      final instance = await _loadInstanceCredentials(json, 'sonarr');
+      final instance = await _loadInstanceCredentials(
+        json as Map<String, dynamic>,
+        serviceType,
+      );
       instances.add(instance);
     }
 
     return instances;
   }
 
-  /// Fast method to get instance metadata only (no credentials from secure storage)
-  /// Use this for listing instances in settings where credentials aren't needed
-  List<Map<String, dynamic>> getSonarrInstancesMetadata() {
-    final jsonString = _preferences.getString(_sonarrInstancesKey);
+  /// Generic method to get instance metadata only (fast, no secure storage access)
+  List<Map<String, dynamic>> _getInstancesMetadata(String serviceType) {
+    final key = serviceType == 'sonarr'
+        ? _sonarrInstancesKey
+        : _radarrInstancesKey;
+    final jsonString = _prefs.getString(key);
     if (jsonString == null) return [];
-    return List<Map<String, dynamic>>.from(jsonDecode(jsonString));
+    return List<Map<String, dynamic>>.from(
+      jsonDecode(jsonString) as List<dynamic>,
+    );
+  }
+
+  Future<List<ServiceInstance>> getSonarrInstances() async {
+    return await _getInstances('sonarr');
+  }
+
+  List<Map<String, dynamic>> getSonarrInstancesMetadata() {
+    return _getInstancesMetadata('sonarr');
   }
 
   Future<void> saveSonarrInstances(List<ServiceInstance> instances) async {
@@ -117,7 +120,7 @@ class InstanceManager {
     final jsonList = instances
         .map((i) => {'id': i.id, 'name': i.name, 'baseUrl': i.baseUrl})
         .toList();
-    await _preferences.setString(_sonarrInstancesKey, jsonEncode(jsonList));
+    await _prefs.setString(_sonarrInstancesKey, jsonEncode(jsonList));
 
     // Save sensitive credentials to secure storage
     for (var instance in instances) {
@@ -149,43 +152,19 @@ class InstanceManager {
     final instances = await getSonarrInstances();
     instances.removeWhere((i) => i.id == id);
     await saveSonarrInstances(instances);
-
-    // Delete credentials from secure storage
     await _deleteInstanceCredentials(id, 'sonarr');
-
-    // If we deleted the active instance, clear it or set to first available
-    final activeId = getActiveSonarrId();
-    if (activeId == id) {
-      if (instances.isNotEmpty) {
-        await setActiveSonarrId(instances.first.id);
-      } else {
-        await _preferences.remove(_activeSonarrKey);
-      }
+    if (getActiveSonarrId() == id) {
+      await _prefs.remove(_activeSonarrKey);
     }
   }
 
   // Radarr Instances
   Future<List<ServiceInstance>> getRadarrInstances() async {
-    final jsonString = _preferences.getString(_radarrInstancesKey);
-    if (jsonString == null) return [];
-
-    final List<dynamic> jsonList = jsonDecode(jsonString);
-    final List<ServiceInstance> instances = [];
-
-    for (var json in jsonList) {
-      final instance = await _loadInstanceCredentials(json, 'radarr');
-      instances.add(instance);
-    }
-
-    return instances;
+    return await _getInstances('radarr');
   }
 
-  /// Fast method to get instance metadata only (no credentials from secure storage)
-  /// Use this for listing instances in settings where credentials aren't needed
   List<Map<String, dynamic>> getRadarrInstancesMetadata() {
-    final jsonString = _preferences.getString(_radarrInstancesKey);
-    if (jsonString == null) return [];
-    return List<Map<String, dynamic>>.from(jsonDecode(jsonString));
+    return _getInstancesMetadata('radarr');
   }
 
   Future<void> saveRadarrInstances(List<ServiceInstance> instances) async {
@@ -193,7 +172,7 @@ class InstanceManager {
     final jsonList = instances
         .map((i) => {'id': i.id, 'name': i.name, 'baseUrl': i.baseUrl})
         .toList();
-    await _preferences.setString(_radarrInstancesKey, jsonEncode(jsonList));
+    await _prefs.setString(_radarrInstancesKey, jsonEncode(jsonList));
 
     // Save sensitive credentials to secure storage
     for (var instance in instances) {
@@ -225,36 +204,27 @@ class InstanceManager {
     final instances = await getRadarrInstances();
     instances.removeWhere((i) => i.id == id);
     await saveRadarrInstances(instances);
-
-    // Delete credentials from secure storage
     await _deleteInstanceCredentials(id, 'radarr');
-
-    // If we deleted the active instance, clear it or set to first available
-    final activeId = getActiveRadarrId();
-    if (activeId == id) {
-      if (instances.isNotEmpty) {
-        await setActiveRadarrId(instances.first.id);
-      } else {
-        await _preferences.remove(_activeRadarrKey);
-      }
+    if (getActiveRadarrId() == id) {
+      await _prefs.remove(_activeRadarrKey);
     }
   }
 
   // Active Instance IDs
   String? getActiveSonarrId() {
-    return _preferences.getString(_activeSonarrKey);
+    return _prefs.getString(_activeSonarrKey);
   }
 
   Future<void> setActiveSonarrId(String id) async {
-    await _preferences.setString(_activeSonarrKey, id);
+    await _prefs.setString(_activeSonarrKey, id);
   }
 
   String? getActiveRadarrId() {
-    return _preferences.getString(_activeRadarrKey);
+    return _prefs.getString(_activeRadarrKey);
   }
 
   Future<void> setActiveRadarrId(String id) async {
-    await _preferences.setString(_activeRadarrKey, id);
+    await _prefs.setString(_activeRadarrKey, id);
   }
 
   // Get Active Instances

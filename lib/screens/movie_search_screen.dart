@@ -1,8 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/radarr_service.dart';
-import '../services/app_state_manager.dart';
-import '../config/app_config.dart';
-import '../utils/error_formatter.dart';
+import 'package:arr_client/models/radarr/movie.dart';
+import 'package:arr_client/models/shared/media_cover.dart';
+import 'package:arr_client/models/shared/quality_profile.dart';
+import 'package:arr_client/models/shared/root_folder.dart';
+import 'package:arr_client/models/shared/tag.dart';
+import 'package:arr_client/services/radarr_service.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/config/app_config.dart';
+import 'package:arr_client/utils/error_formatter.dart';
+import 'package:arr_client/di/injection.dart';
 
 class MovieSearchScreen extends StatefulWidget {
   const MovieSearchScreen({super.key});
@@ -12,11 +20,11 @@ class MovieSearchScreen extends StatefulWidget {
 }
 
 class _MovieSearchScreenState extends State<MovieSearchScreen> {
-  final RadarrService _radarr = RadarrService();
+  final RadarrService _radarr = getIt<RadarrService>();
   final TextEditingController _searchController = TextEditingController();
 
-  List<dynamic> _searchResults = [];
-  List<dynamic> _existingMovies = [];
+  List<MovieResource> _searchResults = [];
+  List<MovieResource> _existingMovies = [];
   bool _isSearching = false;
   bool _hasSearched = false;
   String? _error;
@@ -26,19 +34,18 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
   void initState() {
     super.initState();
     _instanceIdOnLoad = AppConfig.activeRadarrInstanceId;
-    _loadExistingMovies();
-    AppStateManager().addListener(_onInstanceChanged);
+    unawaited(_loadExistingMovies());
+    getIt<AppStateManager>().addListener(_onInstanceChanged);
   }
 
   @override
   void dispose() {
-    AppStateManager().removeListener(_onInstanceChanged);
+    getIt<AppStateManager>().removeListener(_onInstanceChanged);
     _searchController.dispose();
     super.dispose();
   }
 
   void _onInstanceChanged() {
-    // If instance changed, return to previous screen
     if (mounted && AppConfig.activeRadarrInstanceId != _instanceIdOnLoad) {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -53,11 +60,12 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
   Future<void> _loadExistingMovies() async {
     try {
       final movies = await _radarr.getMovies();
+      if (!mounted) return;
       setState(() {
         _existingMovies = movies;
       });
     } catch (e) {
-      // Non-critical error, just won't show "already added" status
+      // Non-critical — just won't show "already added" status
     }
   }
 
@@ -72,11 +80,13 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
 
     try {
       final results = await _radarr.searchMovies(query);
+      if (!mounted) return;
       setState(() {
         _searchResults = results;
         _isSearching = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = ErrorFormatter.format(e);
         _isSearching = false;
@@ -84,11 +94,18 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
     }
   }
 
-  bool _isMovieInLibrary(Map<String, dynamic> movie) {
-    final tmdbId = movie['tmdbId'];
+  bool _isMovieInLibrary(MovieResource movie) {
+    final tmdbId = movie.tmdbId;
     if (tmdbId == null) return false;
+    return _existingMovies.any((m) => m.tmdbId == tmdbId);
+  }
 
-    return _existingMovies.any((m) => m['tmdbId'] == tmdbId);
+  String? _posterUrl(List<MediaCover>? images) {
+    if (images == null) return null;
+    for (final image in images) {
+      if (image.coverType == 'poster') return image.remoteUrl;
+    }
+    return null;
   }
 
   @override
@@ -235,25 +252,14 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
     );
   }
 
-  Widget _buildSearchResultCard(Map<String, dynamic> movie) {
-    final String title = movie['title'] ?? 'Unknown Title';
-    final int year = movie['year'] ?? 0;
-    final String? overview = movie['overview'];
-    final bool inLibrary = _isMovieInLibrary(movie);
-    final String status = movie['status'] ?? 'unknown';
-    final int runtime = movie['runtime'] ?? 0;
-
-    // Get poster image
-    final List<dynamic>? images = movie['images'];
-    String? posterUrl;
-    if (images != null) {
-      for (var image in images) {
-        if (image['coverType'] == 'poster') {
-          posterUrl = image['remoteUrl'];
-          break;
-        }
-      }
-    }
+  Widget _buildSearchResultCard(MovieResource movie) {
+    final title = movie.title ?? 'Unknown Title';
+    final year = movie.year ?? 0;
+    final overview = movie.overview;
+    final inLibrary = _isMovieInLibrary(movie);
+    final status = movie.status ?? 'unknown';
+    final runtime = movie.runtime ?? 0;
+    final posterUrl = _posterUrl(movie.images);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
@@ -267,7 +273,7 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
               ),
             );
           } else {
-            _showAddMovieDialog(movie);
+            unawaited(_showAddMovieDialog(movie));
           }
         },
         child: Padding(
@@ -275,7 +281,6 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Poster
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: posterUrl != null
@@ -301,7 +306,6 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
                       ),
               ),
               const SizedBox(width: 12),
-              // Movie Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -342,14 +346,14 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
                     ],
                     if (inLibrary) ...[
                       const SizedBox(height: 8),
-                      Row(
+                      const Row(
                         children: [
                           Icon(
                             Icons.check_circle,
                             size: 16,
                             color: Colors.green,
                           ),
-                          const SizedBox(width: 4),
+                          SizedBox(width: 4),
                           Text(
                             'In Library',
                             style: TextStyle(
@@ -377,11 +381,10 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
     );
   }
 
-  Future<void> _showAddMovieDialog(Map<String, dynamic> movie) async {
-    // Get quality profiles, root folders, and tags
-    List<dynamic>? qualityProfiles;
-    List<dynamic>? rootFolders;
-    List<dynamic>? tags;
+  Future<void> _showAddMovieDialog(MovieResource movie) async {
+    List<QualityProfileResource>? qualityProfiles;
+    List<RootFolderResource>? rootFolders;
+    List<TagResource>? tags;
 
     try {
       final results = await Future.wait([
@@ -389,9 +392,9 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
         _radarr.getRootFolders(),
         _radarr.getTags(),
       ]);
-      qualityProfiles = results[0];
-      rootFolders = results[1];
-      tags = results[2];
+      qualityProfiles = results[0] as List<QualityProfileResource>;
+      rootFolders = results[1] as List<RootFolderResource>;
+      tags = results[2] as List<TagResource>;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -420,17 +423,17 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
 
     if (!mounted) return;
 
-    int selectedQualityProfile = qualityProfiles.first['id'];
-    String selectedRootFolder = rootFolders.first['path'];
-    List<int> selectedTags = [];
-    String selectedMinimumAvailability = 'released';
-    bool searchForMovie = false;
+    var selectedQualityProfile = qualityProfiles.first.id!;
+    var selectedRootFolder = rootFolders.first.path!;
+    final selectedTags = <int>[];
+    var selectedMinimumAvailability = 'released';
+    var searchForMovie = false;
 
-    await showDialog(
+    await showDialog<void>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text('Add ${movie['title']}'),
+          title: Text('Add ${movie.title}'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -452,12 +455,14 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
                   ),
                   items: qualityProfiles!.map((profile) {
                     return DropdownMenuItem<int>(
-                      value: profile['id'],
-                      child: Text(profile['name']),
+                      value: profile.id,
+                      child: Text(profile.name ?? ''),
                     );
                   }).toList(),
                   onChanged: (value) {
-                    setDialogState(() => selectedQualityProfile = value!);
+                    if (value != null) {
+                      setDialogState(() => selectedQualityProfile = value);
+                    }
                   },
                 ),
                 const SizedBox(height: 16),
@@ -477,12 +482,14 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
                   ),
                   items: rootFolders!.map((folder) {
                     return DropdownMenuItem<String>(
-                      value: folder['path'],
-                      child: Text(folder['path']),
+                      value: folder.path,
+                      child: Text(folder.path ?? ''),
                     );
                   }).toList(),
                   onChanged: (value) {
-                    setDialogState(() => selectedRootFolder = value!);
+                    if (value != null) {
+                      setDialogState(() => selectedRootFolder = value);
+                    }
                   },
                 ),
                 const SizedBox(height: 16),
@@ -515,7 +522,9 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
                     ),
                   ],
                   onChanged: (value) {
-                    setDialogState(() => selectedMinimumAvailability = value!);
+                    if (value != null) {
+                      setDialogState(() => selectedMinimumAvailability = value);
+                    }
                   },
                 ),
                 const SizedBox(height: 16),
@@ -529,16 +538,16 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
                     spacing: 6,
                     runSpacing: 6,
                     children: tags.map((tag) {
-                      final isSelected = selectedTags.contains(tag['id']);
+                      final isSelected = selectedTags.contains(tag.id);
                       return FilterChip(
-                        label: Text(tag['label']),
+                        label: Text(tag.label ?? ''),
                         selected: isSelected,
                         onSelected: (selected) {
                           setDialogState(() {
-                            if (selected) {
-                              selectedTags.add(tag['id']);
+                            if (selected && tag.id != null) {
+                              selectedTags.add(tag.id!);
                             } else {
-                              selectedTags.remove(tag['id']);
+                              selectedTags.remove(tag.id);
                             }
                           });
                         },
@@ -585,7 +594,7 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
   }
 
   Future<void> _addMovieToLibrary(
-    Map<String, dynamic> movie,
+    MovieResource movie,
     int qualityProfileId,
     String rootFolderPath,
     List<int> tags,
@@ -593,7 +602,6 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
     bool searchForMovie,
   ) async {
     try {
-      // Show loading indicator
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -613,36 +621,31 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
         );
       }
 
-      final movieData = {
-        'title': movie['title'],
-        'tmdbId': movie['tmdbId'],
+      final movieData = <String, dynamic>{
+        'title': movie.title,
+        'tmdbId': movie.tmdbId,
         'qualityProfileId': qualityProfileId,
         'rootFolderPath': rootFolderPath,
         'monitored': true,
         'minimumAvailability': minimumAvailability,
         'tags': tags,
         'addOptions': {'searchForMovie': searchForMovie},
-        // Copy over other necessary fields from search result
-        'titleSlug': movie['titleSlug'],
-        'images': movie['images'],
-        'year': movie['year'],
+        'titleSlug': movie.titleSlug,
+        'images': movie.images?.map((i) => i.toJson()).toList() ?? [],
+        'year': movie.year,
       };
 
       await _radarr.addMovie(movieData);
-
-      // Reload existing movies
       await _loadExistingMovies();
 
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${movie['title']} added successfully!'),
+            content: Text('${movie.title} added successfully!'),
             backgroundColor: Colors.green,
           ),
         );
-
-        // Update UI to show movie is now in library
         setState(() {});
       }
     } catch (e) {

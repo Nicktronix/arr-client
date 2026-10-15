@@ -416,7 +416,7 @@ Error: flutter analyze found issues
 **Fix**: Run locally before pushing:
 ```bash
 flutter analyze
-flutter format lib/ test/
+dart format lib/ test/
 ```
 
 ### Workflow Fails on Test

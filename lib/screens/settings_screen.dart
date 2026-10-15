@@ -1,14 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:file_picker/file_picker.dart';
-import '../services/instance_manager.dart';
-import '../services/app_state_manager.dart';
-import '../services/api_client.dart';
-import '../services/biometric_service.dart';
-import '../services/backup_service.dart';
-import '../models/service_instance.dart';
-import '../utils/error_formatter.dart';
+import 'package:arr_client/services/app_state_manager.dart';
+import 'package:arr_client/services/api_client.dart';
+import 'package:arr_client/services/biometric_service.dart';
+import 'package:arr_client/services/backup_service.dart';
+import 'package:arr_client/models/service_instance.dart';
+import 'package:arr_client/di/injection.dart';
+import 'package:arr_client/utils/error_formatter.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -20,7 +22,6 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final InstanceManager _instanceManager = InstanceManager();
 
   @override
   void initState() {
@@ -50,16 +51,10 @@ class _SettingsScreenState extends State<SettingsScreen>
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [
-          _InstanceListTab(
-            serviceType: 'sonarr',
-            instanceManager: _instanceManager,
-          ),
-          _InstanceListTab(
-            serviceType: 'radarr',
-            instanceManager: _instanceManager,
-          ),
-          const _SecuritySettingsTab(),
+        children: const [
+          _InstanceListTab(serviceType: 'sonarr'),
+          _InstanceListTab(serviceType: 'radarr'),
+          _SecuritySettingsTab(),
         ],
       ),
     );
@@ -68,19 +63,15 @@ class _SettingsScreenState extends State<SettingsScreen>
 
 class _InstanceListTab extends StatefulWidget {
   final String serviceType; // 'sonarr' or 'radarr'
-  final InstanceManager instanceManager;
 
-  const _InstanceListTab({
-    required this.serviceType,
-    required this.instanceManager,
-  });
+  const _InstanceListTab({required this.serviceType});
 
   @override
   State<_InstanceListTab> createState() => _InstanceListTabState();
 }
 
 class _InstanceListTabState extends State<_InstanceListTab> {
-  final AppStateManager _appState = AppStateManager();
+  final AppStateManager _appState = getIt<AppStateManager>();
   List<ServiceInstance> _instances = [];
   String? _activeInstanceId;
   bool _isLoading = true;
@@ -88,44 +79,55 @@ class _InstanceListTabState extends State<_InstanceListTab> {
   @override
   void initState() {
     super.initState();
-    _loadInstances();
+    _appState.addListener(_onStateChanged);
+    unawaited(_loadInstances());
   }
 
-  Future<void> _loadInstances() async {
-    setState(() => _isLoading = true);
+  @override
+  void dispose() {
+    _appState.removeListener(_onStateChanged);
+    super.dispose();
+  }
+
+  // Silent refresh — no loading spinner. Used by AppStateManager listener
+  // so active-instance switches don't incorrectly trigger loading state.
+  void _onStateChanged() => _loadInstances(silent: true);
+
+  Future<void> _loadInstances({bool silent = false}) async {
+    if (!silent) setState(() => _isLoading = true);
 
     try {
-      // Use fast metadata-only methods - no secure storage access needed
       final instancesMetadata = widget.serviceType == 'sonarr'
-          ? widget.instanceManager.getSonarrInstancesMetadata()
-          : widget.instanceManager.getRadarrInstancesMetadata();
+          ? _appState.getSonarrInstancesMetadata()
+          : _appState.getRadarrInstancesMetadata();
 
       final activeId = widget.serviceType == 'sonarr'
-          ? widget.instanceManager.getActiveSonarrId()
-          : widget.instanceManager.getActiveRadarrId();
+          ? _appState.getActiveSonarrId()
+          : _appState.getActiveRadarrId();
 
-      // Convert metadata to ServiceInstance objects (no credentials needed for display)
       final instances = instancesMetadata
           .map(
             (json) => ServiceInstance(
               id: json['id'] as String,
               name: json['name'] as String,
               baseUrl: json['baseUrl'] as String,
-              apiKey: '', // Not needed for display
+              apiKey: '',
               basicAuthUsername: null,
               basicAuthPassword: null,
             ),
           )
           .toList();
 
-      setState(() {
-        _instances = instances;
-        _activeInstanceId = activeId;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
       if (mounted) {
+        setState(() {
+          _instances = instances;
+          _activeInstanceId = activeId;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -153,8 +155,8 @@ class _InstanceListTabState extends State<_InstanceListTab> {
       // Revert radio button on error
       setState(
         () => _activeInstanceId = widget.serviceType == 'sonarr'
-            ? widget.instanceManager.getActiveSonarrId()
-            : widget.instanceManager.getActiveRadarrId(),
+            ? _appState.getActiveSonarrId()
+            : _appState.getActiveRadarrId(),
       );
 
       if (mounted) {
@@ -189,9 +191,9 @@ class _InstanceListTabState extends State<_InstanceListTab> {
 
     try {
       if (widget.serviceType == 'sonarr') {
-        await widget.instanceManager.deleteSonarrInstance(instance.id);
+        await _appState.deleteSonarrInstance(instance.id);
       } else {
-        await widget.instanceManager.deleteRadarrInstance(instance.id);
+        await _appState.deleteRadarrInstance(instance.id);
       }
 
       await _loadInstances();
@@ -215,13 +217,14 @@ class _InstanceListTabState extends State<_InstanceListTab> {
   }
 
   void _showAddEditDialog({ServiceInstance? instance}) {
-    showDialog(
-      context: context,
-      builder: (context) => _InstanceFormDialog(
-        serviceType: widget.serviceType,
-        instanceManager: widget.instanceManager,
-        instance: instance,
-        onSaved: _loadInstances,
+    unawaited(
+      showDialog(
+        context: context,
+        builder: (context) => _InstanceFormDialog(
+          serviceType: widget.serviceType,
+          appState: _appState,
+          instance: instance,
+        ),
       ),
     );
   }
@@ -258,7 +261,7 @@ class _InstanceListTabState extends State<_InstanceListTab> {
             ),
             const SizedBox(height: 24),
             FilledButton.icon(
-              onPressed: () => _showAddEditDialog(),
+              onPressed: _showAddEditDialog,
               icon: const Icon(Icons.add),
               label: const Text('Add Instance'),
             ),
@@ -273,7 +276,7 @@ class _InstanceListTabState extends State<_InstanceListTab> {
           child: RadioGroup<String>(
             groupValue: _activeInstanceId,
             onChanged: (value) {
-              if (value != null) _setActiveInstance(value);
+              if (value != null) unawaited(_setActiveInstance(value));
             },
             child: ListView.builder(
               padding: const EdgeInsets.all(8),
@@ -339,7 +342,7 @@ class _InstanceListTabState extends State<_InstanceListTab> {
           child: SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: () => _showAddEditDialog(),
+              onPressed: _showAddEditDialog,
               icon: const Icon(Icons.add),
               label: const Text('Add Instance'),
             ),
@@ -352,15 +355,13 @@ class _InstanceListTabState extends State<_InstanceListTab> {
 
 class _InstanceFormDialog extends StatefulWidget {
   final String serviceType;
-  final InstanceManager instanceManager;
+  final AppStateManager appState;
   final ServiceInstance? instance;
-  final VoidCallback onSaved;
 
   const _InstanceFormDialog({
     required this.serviceType,
-    required this.instanceManager,
+    required this.appState,
     this.instance,
-    required this.onSaved,
   });
 
   @override
@@ -427,7 +428,7 @@ class _InstanceFormDialogState extends State<_InstanceFormDialog> {
           : null;
 
       // Import services to test connection
-      final ApiClient client = ApiClient(
+      final client = ApiClient(
         baseUrl: baseUrl,
         apiKey: apiKey,
         basicAuthUsername: basicAuthUsername,
@@ -526,24 +527,21 @@ class _InstanceFormDialogState extends State<_InstanceFormDialog> {
       );
 
       if (widget.instance != null) {
-        // Update existing
         if (widget.serviceType == 'sonarr') {
-          await widget.instanceManager.updateSonarrInstance(instance);
+          await widget.appState.updateSonarrInstance(instance);
         } else {
-          await widget.instanceManager.updateRadarrInstance(instance);
+          await widget.appState.updateRadarrInstance(instance);
         }
       } else {
-        // Add new
         if (widget.serviceType == 'sonarr') {
-          await widget.instanceManager.addSonarrInstance(instance);
+          await widget.appState.addSonarrInstance(instance);
         } else {
-          await widget.instanceManager.addRadarrInstance(instance);
+          await widget.appState.addRadarrInstance(instance);
         }
       }
 
       if (mounted) {
         Navigator.pop(context);
-        widget.onSaved();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -741,18 +739,18 @@ class _SecuritySettingsTab extends StatefulWidget {
 }
 
 class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
-  final BiometricService _biometricService = BiometricService();
-  final BackupService _backupService = BackupService();
+  final BiometricService _biometricService = getIt<BiometricService>();
+  final BackupService _backupService = getIt<BackupService>();
   bool _isLoading = true;
   bool _deviceSupported = false;
   List<BiometricType> _availableBiometrics = [];
   bool _biometricEnabled = false;
-  bool _timeoutEnabled = true;
+  int _timeoutMinutes = 5;
 
   @override
   void initState() {
     super.initState();
-    _checkBiometricSupport();
+    unawaited(_checkBiometricSupport());
   }
 
   Future<void> _exportInstances() async {
@@ -769,20 +767,22 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
     try {
       // Show progress
       if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const Center(
-            child: Card(
-              child: Padding(
-                padding: EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Preparing export...'),
-                  ],
+        unawaited(
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => const Center(
+              child: Card(
+                child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Preparing export...'),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -795,7 +795,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
 
       // Pick save location with bytes (required for Android/iOS)
       // Keep dialog open until file picker shows to prevent "frozen" appearance
-      final result = await FilePicker.platform.saveFile(
+      final result = await FilePicker.saveFile(
         dialogTitle: 'Save Backup',
         fileName: 'arr_backup_${DateTime.now().millisecondsSinceEpoch}.json',
         type: FileType.custom,
@@ -835,20 +835,22 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
   Future<void> _importInstances() async {
     try {
       // Show loading while file picker opens
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: Card(
-            child: Padding(
-              padding: EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Opening file picker...'),
-                ],
+      unawaited(
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: Card(
+              child: Padding(
+                padding: EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Opening file picker...'),
+                  ],
+                ),
               ),
             ),
           ),
@@ -856,7 +858,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
       );
 
       // Pick file
-      final result = await FilePicker.platform.pickFiles(
+      final file = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['json'],
         dialogTitle: 'Select Backup File',
@@ -864,9 +866,8 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
 
       if (mounted) Navigator.pop(context); // Close file picker loading
 
-      if (result == null || result.files.single.path == null) return;
-
-      final filePath = result.files.single.path!;
+      final filePath = file?.path;
+      if (filePath == null) return;
 
       // Show password dialog
       if (!mounted) return;
@@ -880,27 +881,30 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
 
       // Show progress
       if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const Center(
-            child: Card(
-              child: Padding(
-                padding: EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Validating backup...'),
-                  ],
+        unawaited(
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => const Center(
+              child: Card(
+                child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Validating backup...'),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         );
+
         // Give dialog time to render before expensive PBKDF2 operation
-        await Future.delayed(const Duration(milliseconds: 50));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
       }
 
       // Validate first (includes PBKDF2 key derivation - 600k iterations)
@@ -927,7 +931,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
                 Text('• ${validation['radarrCount']} Radarr instance(s)'),
                 const SizedBox(height: 12),
                 Text(
-                  'Exported: ${DateTime.parse(validation['exportDate']).toLocal().toString().split('.')[0]}',
+                  'Exported: ${DateTime.parse(validation['exportDate'] as String).toLocal().toString().split('.')[0]}',
                 ),
                 const SizedBox(height: 12),
                 const Text(
@@ -953,27 +957,30 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
 
         // Show import progress
         if (!mounted) return;
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const Center(
-            child: Card(
-              child: Padding(
-                padding: EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Importing instances...'),
-                  ],
+        unawaited(
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => const Center(
+              child: Card(
+                child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Importing instances...'),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         );
+
         // Give dialog time to render before expensive decryption operation
-        await Future.delayed(const Duration(milliseconds: 50));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
 
         // Import (includes PBKDF2 key derivation + AES-GCM decryption)
         final counts = await _backupService.importInstances(password, filePath);
@@ -982,7 +989,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
           Navigator.pop(context); // Close progress dialog
 
           // Reload all instances (loads credentials, clears cache, notifies)
-          await AppStateManager().reloadInstances();
+          await getIt<AppStateManager>().reloadInstances();
 
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1014,80 +1021,13 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
     required String title,
     required String message,
     bool confirmMode = false,
-  }) async {
-    final passwordController = TextEditingController();
-    final confirmController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
+  }) {
     return showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(message),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: passwordController,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(),
-                ),
-                obscureText: true,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Password is required';
-                  }
-                  if (value.length < 12) {
-                    return 'Password must be at least 12 characters';
-                  }
-                  return null;
-                },
-              ),
-              if (confirmMode) ...[
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: confirmController,
-                  decoration: const InputDecoration(
-                    labelText: 'Confirm Password',
-                    border: OutlineInputBorder(),
-                  ),
-                  obscureText: true,
-                  validator: (value) {
-                    if (value != passwordController.text) {
-                      return 'Passwords do not match';
-                    }
-                    return null;
-                  },
-                ),
-              ],
-              const SizedBox(height: 8),
-              Text(
-                confirmMode
-                    ? 'Use a strong password (min 12 characters). You will need it to import this backup.'
-                    : 'Enter the password you used when exporting this backup.',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(context, passwordController.text);
-              }
-            },
-            child: const Text('Continue'),
-          ),
-        ],
+      builder: (context) => _PasswordDialog(
+        title: title,
+        message: message,
+        confirmMode: confirmMode,
       ),
     );
   }
@@ -1099,14 +1039,14 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
       final supported = await _biometricService.isDeviceSupported();
       final biometrics = await _biometricService.getAvailableBiometrics();
       final enabled = await _biometricService.isBiometricEnabled();
-      final timeout = await _biometricService.isTimeoutEnabled();
+      final timeoutMinutes = await _biometricService.getTimeoutMinutes();
 
       if (mounted) {
         setState(() {
           _deviceSupported = supported;
           _availableBiometrics = biometrics;
           _biometricEnabled = enabled;
-          _timeoutEnabled = timeout;
+          _timeoutMinutes = timeoutMinutes;
           _isLoading = false;
         });
       }
@@ -1152,7 +1092,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
           return;
         }
 
-        await _biometricService.setBiometricEnabled(true);
+        await _biometricService.setBiometricEnabled(enabled: true);
         setState(() => _biometricEnabled = true);
 
         if (mounted) {
@@ -1166,7 +1106,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
         }
       } on PlatformException catch (e) {
         if (mounted) {
-          String message = 'Authentication failed';
+          var message = 'Authentication failed';
 
           // Provide more specific error messages
           if (e.code == 'NotAvailable') {
@@ -1195,9 +1135,9 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
         return;
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: ${ErrorFormatter.format(e)}')),
+          );
         }
         return;
       }
@@ -1220,7 +1160,7 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
           return;
         }
 
-        await _biometricService.setBiometricEnabled(false);
+        await _biometricService.setBiometricEnabled(enabled: false);
         setState(() => _biometricEnabled = false);
 
         if (mounted) {
@@ -1239,9 +1179,9 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
     }
   }
 
-  Future<void> _toggleTimeout(bool value) async {
-    await _biometricService.setTimeoutEnabled(value);
-    setState(() => _timeoutEnabled = value);
+  Future<void> _setTimeoutMinutes(int minutes) async {
+    await _biometricService.setTimeoutMinutes(minutes);
+    setState(() => _timeoutMinutes = minutes);
   }
 
   @override
@@ -1334,14 +1274,29 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
                 ),
                 if (_biometricEnabled) ...[
                   const Divider(),
-                  SwitchListTile(
-                    title: const Text('Require After Background'),
+                  ListTile(
+                    title: const Text('Re-authenticate After'),
                     subtitle: const Text(
-                      'Re-authenticate when returning from background (5 min timeout)',
+                      'Time before re-authentication is required',
                     ),
-                    value: _timeoutEnabled,
-                    onChanged: _toggleTimeout,
                     contentPadding: EdgeInsets.zero,
+                    trailing: DropdownButton<int>(
+                      value: _timeoutMinutes,
+                      onChanged: (value) {
+                        if (value != null) unawaited(_setTimeoutMinutes(value));
+                      },
+                      items: const [
+                        DropdownMenuItem(
+                          value: BiometricService.timeoutNever,
+                          child: Text('Never'),
+                        ),
+                        DropdownMenuItem(value: 0, child: Text('Immediately')),
+                        DropdownMenuItem(value: 1, child: Text('1 minute')),
+                        DropdownMenuItem(value: 5, child: Text('5 minutes')),
+                        DropdownMenuItem(value: 15, child: Text('15 minutes')),
+                        DropdownMenuItem(value: 30, child: Text('30 minutes')),
+                      ],
+                    ),
                   ),
                 ],
               ],
@@ -1465,6 +1420,113 @@ class _SecuritySettingsTabState extends State<_SecuritySettingsTab> {
         Icon(icon, size: 20, color: Colors.green),
         const SizedBox(width: 8),
         Expanded(child: Text(text, style: const TextStyle(fontSize: 14))),
+      ],
+    );
+  }
+}
+
+class _PasswordDialog extends StatefulWidget {
+  final String title;
+  final String message;
+  final bool confirmMode;
+
+  const _PasswordDialog({
+    required this.title,
+    required this.message,
+    this.confirmMode = false,
+  });
+
+  @override
+  State<_PasswordDialog> createState() => _PasswordDialogState();
+}
+
+class _PasswordDialogState extends State<_PasswordDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _passwordController;
+  late final TextEditingController _confirmController;
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordController = TextEditingController();
+    _confirmController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _confirmController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(widget.message),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _passwordController,
+              decoration: const InputDecoration(
+                labelText: 'Password',
+                border: OutlineInputBorder(),
+              ),
+              obscureText: true,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Password is required';
+                }
+                if (value.length < 12) {
+                  return 'Password must be at least 12 characters';
+                }
+                return null;
+              },
+            ),
+            if (widget.confirmMode) ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _confirmController,
+                decoration: const InputDecoration(
+                  labelText: 'Confirm Password',
+                  border: OutlineInputBorder(),
+                ),
+                obscureText: true,
+                validator: (value) {
+                  if (value != _passwordController.text) {
+                    return 'Passwords do not match';
+                  }
+                  return null;
+                },
+              ),
+            ],
+            const SizedBox(height: 8),
+            Text(
+              widget.confirmMode
+                  ? 'Use a strong password (min 12 characters). You will need it to import this backup.'
+                  : 'Enter the password you used when exporting this backup.',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            if (_formKey.currentState!.validate()) {
+              Navigator.pop(context, _passwordController.text);
+            }
+          },
+          child: const Text('Continue'),
+        ),
       ],
     );
   }

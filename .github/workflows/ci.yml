@@ -21,7 +21,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions: {}
+permissions:
+  contents: read
+  security-events: write
 
 jobs:
   analyze:
@@ -31,18 +33,21 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
-      
+        uses: actions/checkout@v7
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.5'
+          flutter-version: '3.47.7'
           channel: 'stable'
           cache: true
-      
+
       - name: Install dependencies
         run: flutter pub get
-      
+
+      - name: Generate code
+        run: flutter pub run build_runner build
+
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed lib/ test/
       
@@ -57,49 +62,49 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
-      
+        uses: actions/checkout@v7
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.5'
+          flutter-version: '3.47.7'
           channel: 'stable'
           cache: true
-      
+
       - name: Install dependencies
         run: flutter pub get
-      
+
+      - name: Generate code
+        run: flutter pub run build_runner build
+
       - name: Run tests with coverage
         run: flutter test --coverage --reporter=expanded
-      
+
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(awk -F: '/^DA:/{split($2,a,","); total++; if(a[2]>0) hit++} END{printf "%.0f", hit/total*100}' coverage/lcov.info)
+          echo "Line coverage: ${COVERAGE}%"
+          if [ "$COVERAGE" -lt 10 ]; then
+            echo "Coverage ${COVERAGE}% is below minimum threshold of 10%"
+            exit 1
+          fi
+
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           files: ./coverage/lcov.info
-          fail_ci_if_error: false
+          fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
 
   security:
     name: Security Scan
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
     needs: analyze
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-      
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.38.5'
-          channel: 'stable'
-          cache: true
-      
-      - name: Install dependencies
-        run: flutter pub get
-      
-      - name: Check for outdated packages
-        run: flutter pub outdated --show-all
-        continue-on-error: true
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.6.0
+    with:
+      scan-args: |-
+        --lockfile=pubspec.lock
 
