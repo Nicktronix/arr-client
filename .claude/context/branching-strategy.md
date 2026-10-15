@@ -47,7 +47,7 @@ develop (protected)       ← Integration branch — default branch, CI always r
 2. Bring in the work: `git merge --ff-only origin/develop` to ship all of develop, or cherry-pick ready commits for a selective release
 3. Bump `pubspec.yaml` version (`X.Y.Z+buildNumber`)
 4. Update `CHANGELOG.md` (move `[Unreleased]` entries into `[X.Y.Z] - YYYY-MM-DD`, using the actual release date)
-5. Push branch, open PR to `main`, merge with admin bypass once the required checks pass
+5. Push branch, open PR to `main`, merge once the required checks pass and it's approved
 6. Tag manually: `git tag -a vX.Y.Z` on `main` and push it. Nothing is auto-tagged. The tag triggers the build and GitHub release
 7. Verify the release run and that the APK is signed with the release key
 8. Merge `release/vX.Y.Z` back to `develop` (brings version bump back); the remote branch is deleted on merge

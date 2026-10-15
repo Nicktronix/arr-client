@@ -70,11 +70,13 @@ develop (default, protected) ← Integration branch
 
 Feature, fix, and chore branches branch from `develop` and PR back to `develop`. See [`.claude/context/branching-strategy.md`](.claude/context/branching-strategy.md) for naming and the issue → branch → PR lifecycle.
 
-`main`, `develop`, and `release/*` are protected by rulesets: changes go through PRs, the three required checks must pass, and 1 approving review is required. Since you can't approve your own PR, the repo owner merges with the admin bypass. Version tags can only be created, not updated or deleted, without bypass. Merged branches are deleted from the remote automatically.
+`main`, `develop`, and `release/*` are protected by rulesets: changes go through PRs, the three required checks must pass, and a maintainer must approve before merging. Version tags can't be updated or deleted once pushed. Merged branches are deleted from the remote automatically.
 
 ---
 
 ## Release Process
+
+Releases are cut by maintainers. To contribute changes, open a PR to `develop` as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### 1. Create the release branch
 
@@ -117,7 +119,7 @@ gh pr create --base main --head release/vX.Y.Z --title "Release vX.Y.Z" \
 See CHANGELOG.md for details."
 ```
 
-Wait for the three required checks, then merge (merge commit) with the admin bypass.
+Once the three required checks pass and the PR is approved, merge it with a merge commit.
 
 ### 4. Tag
 
@@ -159,7 +161,7 @@ Close each issue included in the release with "Shipped in vX.Y.Z" and move it fr
 If the tag build fails, nothing was published:
 
 1. Fix the cause on `develop` (fix branch → PR), then bring it to `main` through a release branch and PR.
-2. Move the tag to the new `main` commit (needs the tag-ruleset bypass):
+2. Move the tag to the new `main` commit (maintainers only, since version tags are protected):
    ```bash
    git push origin :refs/tags/vX.Y.Z
    git tag -d vX.Y.Z

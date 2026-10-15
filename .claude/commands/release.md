@@ -26,7 +26,7 @@ Guide me through creating a new release for arr-client following the release pro
 11. `pubspec.yaml`: version `X.Y.Z+N`, where N is the last released build number + 1. It may already be set on develop. If so, leave it.
 12. `CHANGELOG.md`: move `[Unreleased]` entries into `## [X.Y.Z] - YYYY-MM-DD` (today's date), leave an empty `[Unreleased]` heading, and update the Version History line. If a `[X.Y.Z]` section already exists, fold the entries in and correct anything the new entries supersede, rather than duplicating it. Show the diff.
 13. Ask whether users need an upgrade note (signing-key change, data migration, manual steps). If so, add it at the top of the version's section.
-14. After confirmation, commit with message `chore: bump version to X.Y.Z` and push `release/vX.Y.Z`. (The push bypasses the release-branch ruleset; that's expected.)
+14. After confirmation, commit with message `chore: bump version to X.Y.Z` and push `release/vX.Y.Z`.
 
 ## Open the PR
 
@@ -36,7 +36,7 @@ Guide me through creating a new release for arr-client following the release pro
 
     See CHANGELOG.md for details."
     ```
-16. Watch the required checks (Code Analysis, Unit Tests, Security Scan). Tell the user the PR needs the admin bypass to merge (1 approval required; you can't approve your own PR).
+16. Watch the required checks (Code Analysis, Unit Tests, Security Scan). The PR also needs an approving review before it can be merged.
 
 ## Tag and verify
 
