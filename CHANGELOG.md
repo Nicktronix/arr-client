@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **GitHub Actions**: `actions/checkout` 7, `codecov/codecov-action` 7, `softprops/action-gh-release` 3, `osv-scanner-action` 2.6.0
 
 ### Fixed
+- Switching Sonarr/Radarr instances no longer fails with "Client is already closed" until the app is restarted
 - Release workflow now runs code generation before building — generated files are gitignored, so tag builds would otherwise fail to compile
 
 ## [1.1.0] - 2026-04-19
