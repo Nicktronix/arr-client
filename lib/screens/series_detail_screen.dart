@@ -635,6 +635,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                 const SizedBox(height: 8),
                 DropdownButtonFormField<int>(
                   initialValue: qualityProfileId,
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
                     contentPadding: EdgeInsets.symmetric(
@@ -645,7 +646,11 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                   items: qualityProfiles!.map((profile) {
                     return DropdownMenuItem<int>(
                       value: profile.id,
-                      child: Text(profile.name ?? ''),
+                      child: Text(
+                        profile.name ?? '',
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
                     );
                   }).toList(),
                   onChanged: (value) {

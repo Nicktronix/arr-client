@@ -507,37 +507,47 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                   ),
                 ],
                 const SizedBox(height: 8),
-                Row(
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 4,
                   children: [
-                    Icon(
-                      monitored ? Icons.visibility : Icons.visibility_off,
-                      size: 18,
-                      color: monitored ? Colors.green : Colors.grey,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      monitored ? 'Monitored' : 'Not Monitored',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: monitored ? Colors.green : Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    if (hasFile) ...[
-                      const Icon(
-                        Icons.check_circle,
-                        size: 18,
-                        color: Colors.green,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Downloaded',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.green[700],
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          monitored ? Icons.visibility : Icons.visibility_off,
+                          size: 18,
+                          color: monitored ? Colors.green : Colors.grey,
                         ),
+                        const SizedBox(width: 4),
+                        Text(
+                          monitored ? 'Monitored' : 'Not Monitored',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: monitored ? Colors.green : Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (hasFile)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.check_circle,
+                            size: 18,
+                            color: Colors.green,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Downloaded',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.green[700],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
                   ],
                 ),
                 if (genres.isNotEmpty) ...[
@@ -882,6 +892,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                 const SizedBox(height: 8),
                 DropdownButtonFormField<int>(
                   initialValue: qualityProfileId,
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
                     contentPadding: EdgeInsets.symmetric(
@@ -892,7 +903,11 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                   items: qualityProfiles!.map((profile) {
                     return DropdownMenuItem<int>(
                       value: profile.id,
-                      child: Text(profile.name ?? ''),
+                      child: Text(
+                        profile.name ?? '',
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
                     );
                   }).toList(),
                   onChanged: (value) {
