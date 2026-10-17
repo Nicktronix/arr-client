@@ -48,9 +48,16 @@ mixin CachedDataLoader<T extends StatefulWidget> on State<T> {
   /// Override to handle the fetched data
   void onDataLoaded(dynamic data);
 
+  /// Identifies what a load is fetching for. Includes both services because
+  /// some screens (e.g. the queue) fetch from Sonarr and Radarr together.
+  String get _loadContext =>
+      '$isSonarrScreen|${_appState.getActiveSonarrId()}|'
+      '${_appState.getActiveRadarrId()}';
+
   /// Load data with automatic cache checking
   Future<void> loadData({bool forceRefresh = false}) async {
     CachedData? cachedData;
+    final requestContext = _loadContext;
 
     // If forcing refresh (e.g., instance switch), show loading state immediately
     if (forceRefresh) {
@@ -104,6 +111,10 @@ mixin CachedDataLoader<T extends StatefulWidget> on State<T> {
     try {
       final data = await fetchData();
 
+      // An instance or service changed while this request was in flight: its
+      // data belongs to the previous one, so neither show nor cache it.
+      if (_loadContext != requestContext) return;
+
       // Update cache
       if (isSonarrScreen) {
         _appState.setSonarrCache(cacheKey, data);
@@ -121,6 +132,7 @@ mixin CachedDataLoader<T extends StatefulWidget> on State<T> {
         onDataLoaded(data);
       }
     } catch (e) {
+      if (_loadContext != requestContext) return;
       if (mounted) {
         if (cachedData == null) {
           setState(() {
