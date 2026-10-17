@@ -466,6 +466,89 @@ void main() {
         expect(find.byIcon(Icons.warning_amber_rounded), findsNothing);
       });
     });
+
+    group('instance switching', () {
+      const otherInstanceId = 'other-sonarr-id';
+
+      // Each fetch gets its own completer so responses can land out of order.
+      late List<Completer<dynamic>> fetches;
+
+      Widget buildSwitchableScreen() {
+        fetches = [];
+        return buildScreen(() {
+          final completer = Completer<dynamic>();
+          fetches.add(completer);
+          return completer.future;
+        });
+      }
+
+      Future<void> switchInstanceAndReload(WidgetTester tester) async {
+        await getIt<AppStateManager>().switchSonarrInstance(otherInstanceId);
+        await tester.tap(find.byKey(const Key('force_refresh')));
+        await tester.pump();
+      }
+
+      testWidgets(
+        'response from previous instance arriving last is discarded',
+        (tester) async {
+          await tester.pumpWidget(buildSwitchableScreen());
+          await tester.pump();
+          await switchInstanceAndReload(tester);
+          expect(fetches, hasLength(2));
+
+          fetches[1].complete(['new_instance_item']);
+          await tester.pumpAndSettle();
+          fetches[0].complete(['old_instance_item']);
+          await tester.pumpAndSettle();
+
+          expect(find.text('new_instance_item'), findsOneWidget);
+          expect(find.text('old_instance_item'), findsNothing);
+          expect(getIt<AppStateManager>().getSonarrCache(testCacheKey)?.data, [
+            'new_instance_item',
+          ]);
+        },
+      );
+
+      testWidgets(
+        'response from previous instance arriving first is not shown or cached',
+        (tester) async {
+          await tester.pumpWidget(buildSwitchableScreen());
+          await tester.pump();
+          await switchInstanceAndReload(tester);
+
+          fetches[0].complete(['old_instance_item']);
+          await tester.pump();
+
+          expect(find.text('old_instance_item'), findsNothing);
+          expect(getIt<AppStateManager>().getSonarrCache(testCacheKey), isNull);
+
+          fetches[1].complete(['new_instance_item']);
+          await tester.pumpAndSettle();
+
+          expect(find.text('new_instance_item'), findsOneWidget);
+        },
+      );
+
+      // Screens like the queue fetch from both services, so a switch of the
+      // other service's instance must also invalidate an in-flight response.
+      testWidgets('switching the other service also discards the response', (
+        tester,
+      ) async {
+        await tester.pumpWidget(buildSwitchableScreen());
+        await tester.pump();
+        await getIt<AppStateManager>().switchRadarrInstance('other-radarr-id');
+        await tester.tap(find.byKey(const Key('force_refresh')));
+        await tester.pump();
+
+        fetches[1].complete(['new_instance_item']);
+        await tester.pumpAndSettle();
+        fetches[0].complete(['old_instance_item']);
+        await tester.pumpAndSettle();
+
+        expect(find.text('new_instance_item'), findsOneWidget);
+        expect(find.text('old_instance_item'), findsNothing);
+      });
+    });
   });
 }
 
