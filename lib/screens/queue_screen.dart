@@ -455,13 +455,17 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
                       children: [
                         Icon(Icons.language, size: 14, color: Colors.grey[600]),
                         const SizedBox(width: 4),
-                        Text(
-                          languages.map((l) => l.name ?? 'Unknown').join(', '),
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey[600],
+                        Flexible(
+                          child: Text(
+                            languages
+                                .map((l) => l.name ?? 'Unknown')
+                                .join(', '),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
@@ -471,11 +475,14 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
                       children: [
                         Icon(Icons.download, size: 14, color: Colors.grey[600]),
                         const SizedBox(width: 4),
-                        Text(
-                          downloadClient,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey[600],
+                        Flexible(
+                          child: Text(
+                            downloadClient,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -486,13 +493,15 @@ class _QueueScreenState extends State<QueueScreen> with CachedDataLoader {
                       children: [
                         Icon(Icons.source, size: 14, color: Colors.grey[600]),
                         const SizedBox(width: 4),
-                        Text(
-                          indexer,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey[600],
+                        Flexible(
+                          child: Text(
+                            indexer,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
