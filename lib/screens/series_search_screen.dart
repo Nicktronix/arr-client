@@ -446,6 +446,7 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
                 const SizedBox(height: 8),
                 DropdownButtonFormField<int>(
                   initialValue: selectedQualityProfile,
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
                     contentPadding: EdgeInsets.symmetric(
@@ -456,7 +457,11 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
                   items: qualityProfiles!.map((profile) {
                     return DropdownMenuItem<int>(
                       value: profile.id,
-                      child: Text(profile.name ?? ''),
+                      child: Text(
+                        profile.name ?? '',
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
                     );
                   }).toList(),
                   onChanged: (value) {
@@ -473,6 +478,7 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   initialValue: selectedRootFolder,
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
                     contentPadding: EdgeInsets.symmetric(
@@ -483,7 +489,11 @@ class _SeriesSearchScreenState extends State<SeriesSearchScreen> {
                   items: rootFolders!.map((folder) {
                     return DropdownMenuItem<String>(
                       value: folder.path,
-                      child: Text(folder.path ?? ''),
+                      child: Text(
+                        folder.path ?? '',
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
                     );
                   }).toList(),
                   onChanged: (value) {
