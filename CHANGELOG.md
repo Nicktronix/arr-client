@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-17
+
+### Fixed
+- Switching Sonarr/Radarr instances while a list was still loading could show — and cache — the previous instance's data; search and series details then mixed data from both servers
+- Layout overflow in the Add Series/Movie dialogs (long root folder paths and quality profile names), queue cards (long language lists, download client and indexer names), and the movie detail status row
+
 ## [1.1.0] - 2026-10-15
 
 > **Upgrading from 1.0.0:** v1.1.0 is signed with a new release key, so Android can't update the existing install in place. Before upgrading, export a backup (Settings → Export), uninstall 1.0.0, install 1.1.0, then import the backup (Settings → Import).
@@ -155,10 +161,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- **[1.1.1]** - 2026-10-17 - Instance-switch stale data fix, layout overflow fixes
 - **[1.1.0]** - 2026-10-15 - Queue enhancements, manual import, episode/movie detail, DI, typed models, OSV security scanning
 - **[1.0.0]** - 2025-12-17 - Initial Public Release
 
 <!-- Link Definitions -->
-[Unreleased]: https://github.com/Nicktronix/arr-client/compare/v1.1.0...develop
+[Unreleased]: https://github.com/Nicktronix/arr-client/compare/v1.1.1...develop
+[1.1.1]: https://github.com/Nicktronix/arr-client/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Nicktronix/arr-client/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Nicktronix/arr-client/releases/tag/v1.0.0
