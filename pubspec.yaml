@@ -54,7 +54,7 @@ dependencies:
   cryptography: ^2.9.0
   
   # File picker for import/export
-  file_picker: ^13.1.0
+  file_picker: ^13.3.2
   get_it: ^9.3.0
   injectable: ^3.0.0
   freezed_annotation: ^3.1.0
